@@ -344,7 +344,7 @@ ggplot(RMR.raw, aes(x=(time/3600), y=rate.output*-1)) +
                      limits = c(0,1000)) + 
   scale_color_gradient(low="rosybrown1", high="red") +
   theme_classic() + 
-  theme(legend.position = "none")
+  theme(legend.position = "right")
 ```
 
 Lets look at the slopes that were discarded 
