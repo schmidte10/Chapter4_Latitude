@@ -273,8 +273,8 @@ To extract rates we need four pieces of information:
 ```{r extract_data, warning=FALSE, message=FALSE}
 apoly_cr.int <- calc_rate.int(apoly_insp, 
                               starts= 400, 
-                              wait= 20, 
-                              measure= 180, 
+                              wait= 80, 
+                              measure= 120, 
                               by="row")
 
 ```
@@ -347,7 +347,7 @@ RMR.raw <-  apoly_cr.int_adj$summary |>
 
 ```{r qc}
 RMR.filtered <- RMR.raw |> 
-  filter(rsq >= 0.9)  
+  filter(rsq >= 0.95)  
 ```
 
 #### Slopes discarded 
