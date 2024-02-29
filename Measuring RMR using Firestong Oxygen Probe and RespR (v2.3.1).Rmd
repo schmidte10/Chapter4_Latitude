@@ -354,12 +354,18 @@ RMR.filtered <- RMR.raw |>
 ```{r slopes discarded, echo=FALSE}
 nrow(RMR.raw)-nrow(RMR.filtered) 
 
-ggplot(RMR.raw, aes(x=time, y=rate.output*-1)) + 
-  geom_point(color = "red", size = 2) + 
-  geom_point(data = RMR.filtered, aes(x=time, y=rate.output*-1), 
-             color = "black", size = 2.1) +
-  xlab("Time") + ylab("Rate") + 
-  theme_classic() 
+ggplot(RMR.raw, aes(x=(time/3600), y=rate.output*-1)) + 
+  geom_point(color = "black", size = 2) + 
+  geom_point(data = RMR.filtered, aes(x=(time/3600), y=rate.output*-1, color = Temperature ), 
+             size = 2.1) +
+  xlab("Time") + ylab("Rate") +  
+  scale_x_continuous(breaks = seq(0, 10, by = 1), 
+                    limits = c(0,10)) + 
+  scale_y_continuous(breaks = seq(0, 1000, by = 100), 
+                     limits = c(0,1000)) + 
+  scale_color_gradient(low="rosybrown1", high="red") +
+  theme_classic() + 
+  theme(legend.position = "none")
 ```
 
 Lets look at the slopes that were discarded 
