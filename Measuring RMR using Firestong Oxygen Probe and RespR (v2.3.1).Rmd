@@ -325,7 +325,7 @@ RMR.raw <-  apoly_cr.int_adj$summary |>
 
 ```{r qc}
 RMR.filtered <- RMR.raw |> 
-  filter(rsq >= 0.95)  
+  filter(rsq >= 0.90)  
 ```
 
 #### Slopes discarded 
