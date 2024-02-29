@@ -1,0 +1,405 @@
+---
+title: "Measuring RMR for CTmax trial using Firestong Oxygen Probe and RespR (v2.3.1)"
+author: "Elliott Schmidt"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    toc: true  
+    toc_depth: 6 
+    toc_float: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE, hide=TRUE}
+knitr::opts_knit$set(root.dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude")
+```
+
+Hello! It looks like you have decided on analyzing your respirometry data using the R package respR. Below are some steps that outline how to do so. This specific tutorial is on calculating **resting metabolic rate**. This specific example is being explored for a CTmax dataset, therefore temperature is important for us to monitor. However, if the temperature in your experiment stays consistent, then you can ignore the additional steps that includes the analysis of temperature data.
+
+Through this tutorial we will be [pipeing](https://r4ds.had.co.nz/pipes.html). The symbol **%>%** and **|>** may be used interchangably. 
+
+### Library (packages)
+
+The first step is to **load** all the packages that are needed. Also, before running the code below, make sure that you have **installed** all the packages that are listed. Some packages like _tidyverse_ will have a number of dependencies. So while you only have to load one package in reality you are loading several behind the scenes - how exciting!
+
+```{r libraries, message=FALSE, warning=FALSE}
+library("respR")
+library("tidyverse") 
+library("data.table") 
+library("hms")
+library("kableExtra")
+library("janitor")
+```
+
+### Set working directory 
+
+Next we will set the working directory. This should always be done in your Rscripts to make sure your files are being saved to the correct location. It can also make it easier to import files. Not sure what directory you're in. Try using the **getwd()** function. 
+
+```{r setwd, message=FALSE, warnings=FALSE, eval=FALSE, echo=TRUE}
+setwd("[PATH TO DIRECTORY]")
+```
+
+### Enter specimen data 
+
+Only some of this data is needed in the analysis, but others are good to include to make sure that you are working with the correct data file. The necessary variables include **mass**, **chamber**, **temperature**, **salinity**, and **chamber_vol**.
+
+```{r speciment data, cache=TRUE}
+FISH_ID = "96.CARL.233.30.2"
+mass = 0.001570 #in kilograms 
+chamber = "ch4" 
+salinity = 37 
+chamber_vol = 0.07160
+temperature = 30
+system1 = "DELL" 
+Date1 = "14/07/2023" 
+Tstart = "10:01:50"
+Tend = "17:37:57"
+
+```
+
+Just a quick note that in this file I have muted some warnings and messages, however, when running your own code do not hide warnings and messages as they often contain useful and important information. 
+
+### Importing data from Firesting 
+
+Now we will import our firesting file. There are a couple special notes to make about code that was run above. The code above was imported via the package _readr_ which gets loaded when load the _tidyverse_ package. This has the benefit of letting you see what the dataframe will look like before importing it and I highly suggest you do this the first time that you import your data. Secondly, you may have to **skip** the first 19 rows from the firesting file as these rows contain metadata, and not the actually oxygen data that you will be using.  
+#### Importing experiment data
+```{r importing data, cache=TRUE, warning=FALSE, echo=TRUE, results="hide"}
+firesting <- read_delim("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/Dell/Experiment_ 14 July 2023 10 01AM/Oxygen data raw/firesting.txt", 
+                             delim = "\t", escape_double = FALSE, 
+                             col_types = cols(`...2` = col_time(format = "%H:%M:%S")), 
+                             trim_ws = TRUE, skip = 18) 
+firesting <- firesting[-1,]
+
+pre_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/Dell/Experiment_ 14 July 2023 09 20AM/All slopes" 
+post_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/Dell/Experiment_ 14 July 2023 05 52PM/All slopes"
+```
+
+
+The code has renamed some of our columns and has told us which columns have received new names 
+
+### Data manipulation 
+
+Now that we have the firesting file in R we must manipulate it so that we have only the data that we need. 
+
+The first step will be so select only the columns we want. The first three columns that we select and rename as **TIME**, **dTIME**, and **DATE**. The next set of columns that we need are the columns that contain the oxygen data from our chambers which we will rename **ch1**, **ch2**, **ch3**, and **ch4**. 
+
+Once we have only the data that we are interested in we will select and reorder the following variables **dTIME**, **chamber** - note this variable will change as we will call upon only the chamber that we have selected in the _specimen data_ section - and **TIME**. 
+
+Then rename the **chamber** column to **Oxygen**. respR will treat the first column as time data and the second column as oxygen data. 
+
+Lastly we make sure that the **dTIME** and **Oxygen** columns are **numeric**. 
+
+NOTE: If you used the temperature probe on the firesting to collect temperature information that you plan on using, you will also need to extract date from the **Temperature** column
+
+```{r data_manipulation, warning=FALSE}
+firesting2 <- firesting %>% 
+  select(c(1:3,5:8,10)) %>% 
+  rename(TIME = ...2, 
+         dTIME = ...3, 
+         DATE = ...1, 
+         ch1 = Oxygen...5, 
+         ch2 = Oxygen...6,
+         ch3 = Oxygen...7, 
+         ch4 = Oxygen...8) %>% 
+  select(c("dTIME", all_of(chamber),"TIME","Temperature")) %>% 
+  rename(Oxygen = chamber) %>% 
+  mutate(dTIME = as.numeric(dTIME), 
+         Oxygen = as.numeric(Oxygen), 
+         TIME = as.character(TIME), 
+         Temp = as.numeric(Temperature))
+```
+
+### Inspect file  
+
+The function _inspect()_ is a data exploration and preparation function that visualizes respirometry data and inspects it for common issues that may affect the use of further functions in **respR**. More information about the _inspect()_ function can be found [here](https://januarharianto.github.io/respR/articles/inspecting.html)  
+
+Let's take a look at our data!
+
+```{r inspect, warning=FALSE}
+inspect(firesting2, time=1, oxygen=2, 
+        add.data = "Temp")
+``` 
+
+Note you may get an error if running in Rmarkdown that says _Error in gzfile(file, "wb") : cannot open the connection_ and a weird result in the inspection of the time and oxygen data. If this happens just run the code in the console and see if that fixes it. 
+
+Before we move on lets take a closer/zoomed in look at the data to examine it a bit more 
+
+```{r inspect2, warning=FALSE}
+inspect(firesting2[15000:20000,], time=1, oxygen=2, 
+        add.data = "Temp")
+``` 
+
+That looks pretty good! :) 
+
+#### Important Note 1 
+
+If you have multiple columns with oxygen data and wanted to expect them all at once you could use the code below: 
+
+```{r data_manipulation-multi-inspect, hide=TRUE, warning=FALSE}
+firesting3 <- firesting %>% 
+  select(c(3,5:8,10)) %>% 
+  rename(dTIME = ...3, 
+         ch1 = Oxygen...5, 
+         ch2 = Oxygen...6,
+         ch3 = Oxygen...7, 
+         ch4 = Oxygen...8) %>%
+  mutate(dTIME = as.numeric(dTIME), 
+         ch1 = as.numeric(ch1), 
+         ch2 = as.numeric(ch2),
+         ch3 = as.numeric(ch3),
+         ch4 = as.numeric(ch4),
+         Temperature = as.numeric(Temperature))
+
+inspect(firesting3, time = 1, oxygen = 4:5, add.data = "Temperature" )
+```
+
+### Background rates 
+
+Before we move forward and calculate rates of oxygen use, we need to calculate background rates so that they can be extracted from the data. In this example we will be extracting both **pre-** and **post** experiment background rates. 
+
+```{r background rates, warning=FALSE, message=FALSE, echo=TRUE, results='hide'} 
+setwd(pre_bg_dir )
+pre_cycle1 <- read_delim("./Cycle_1.txt", 
+    delim = ";", escape_double = FALSE, col_types = cols(Time = col_time(format = "%H:%M:%S"), 
+        ...8 = col_skip()), trim_ws = TRUE) %>% 
+  rename(dTIME = `Seconds from start for linreg`, 
+         ch1 =`ch1 po2`, 
+         ch2 =`ch2 po2`, 
+         ch3 =`ch3 po2`, 
+         ch4 =`ch4 po2`) %>% 
+  select(c("Time",chamber))
+
+pre_cycle2 <- read_delim("./Cycle_2.txt", 
+    delim = ";", escape_double = FALSE, col_types = cols(Time = col_time(format = "%H:%M:%S"), 
+        ...8 = col_skip()), trim_ws = TRUE) %>% 
+  rename(dTIME = `Seconds from start for linreg`, 
+         ch1 =`ch1 po2`, 
+         ch2 =`ch2 po2`, 
+         ch3 =`ch3 po2`, 
+         ch4 =`ch4 po2`) %>% 
+  select(c("Time",chamber)) 
+
+pre_cycle3 <- read_delim("./Cycle_3.txt", 
+    delim = ";", escape_double = FALSE, col_types = cols(Time = col_time(format = "%H:%M:%S"), 
+        ...8 = col_skip()), trim_ws = TRUE) %>% 
+  rename(dTIME = `Seconds from start for linreg`, 
+         ch1 =`ch1 po2`, 
+         ch2 =`ch2 po2`, 
+         ch3 =`ch3 po2`, 
+         ch4 =`ch4 po2`) %>% 
+  select(c("Time",chamber))
+
+
+bg_pre1 <- pre_cycle1 %>% calc_rate.bg()
+bg_pre2 <- pre_cycle2 %>% calc_rate.bg()
+bg_pre3 <- pre_cycle3 %>% calc_rate.bg()
+
+bg_pre <- mean(bg_pre1$rate.bg.mean,bg_pre2$rate.bg.mean,bg_pre3$rate.bg.mean)
+bg_pre[bg_pre>0] <- 0
+
+setwd(post_bg_dir)
+post_cycle1 <- read_delim("./Cycle_1.txt", 
+    delim = ";", escape_double = FALSE, col_types = cols(Time = col_time(format = "%H:%M:%S"), 
+        ...8 = col_skip()), trim_ws = TRUE) %>% 
+  rename(dTIME = `Seconds from start for linreg`, 
+         ch1 =`ch1 po2`, 
+         ch2 =`ch2 po2`, 
+         ch3 =`ch3 po2`, 
+         ch4 =`ch4 po2`) %>% 
+  select(c("Time",chamber))
+
+post_cycle2 <- read_delim("./Cycle_2.txt", 
+    delim = ";", escape_double = FALSE, col_types = cols(Time = col_time(format = "%H:%M:%S"), 
+        ...8 = col_skip()), trim_ws = TRUE) %>% 
+  rename(dTIME = `Seconds from start for linreg`, 
+         ch1 =`ch1 po2`, 
+         ch2 =`ch2 po2`, 
+         ch3 =`ch3 po2`, 
+         ch4 =`ch4 po2`) %>% 
+  select(c("Time",chamber)) 
+
+post_cycle3 <- read_delim("./Cycle_3.txt", 
+    delim = ";", escape_double = FALSE, col_types = cols(Time = col_time(format = "%H:%M:%S"), 
+        ...8 = col_skip()), trim_ws = TRUE) %>% 
+  rename(dTIME = `Seconds from start for linreg`, 
+         ch1 =`ch1 po2`, 
+         ch2 =`ch2 po2`, 
+         ch3 =`ch3 po2`, 
+         ch4 =`ch4 po2`) %>% 
+  select(c("Time",chamber))
+
+bg_post1 <- post_cycle1 %>% calc_rate.bg()
+bg_post2 <- post_cycle2 %>% calc_rate.bg()
+bg_post3 <- post_cycle3 %>% calc_rate.bg()
+
+bg_post <- mean(bg_post1$rate.bg.mean,bg_post2$rate.bg.mean,bg_post3$rate.bg.mean)
+bg_post[bg_post>0] <- 0
+```
+### subset data
+
+Before extracting slopes. Let's subset out data so that we only look at data during the time that the experiment was running. You may have noticed during our initial inspection that there was a long flat line at the beginning. This likely occurred when we background was being recorded and or waiting on temperature to get to where it should be. We can clip this section off. 
+
+To do this we will subset set by row. In our carefully recorded notes we know what the time the experiment began. In this example it was 10:01:50 and we know when it ended for our chosen fish 17:37:00. So lets subset the data to fit these times and then inspect it again to make sure that it worked how we intended.  
+
+we are going to subset by row, so first I will find out what rows in the dataframe are associated with start and end times.
+
+```{r subset_data, results='hide', message=FALSE, warning=FALSE}
+exp_start <- which(firesting2$TIME == Tstart)
+exp_end <- which(firesting2$TIME == Tend)
+
+
+apoly_insp <- firesting2 |> 
+  subset_data(from = exp_start, 
+              to = exp_end, 
+              by="row") 
+```
+
+```{r inspect-subset-data}
+apoly_insp <- apoly_insp|> 
+  inspect()
+```
+
+Great! works well. 
+
+### Extract rates 
+
+To extract rates we need four pieces of information: 
+
+1) apoly_insp = this will be your dataframe 
+2) starts = the time period (in seconds) of one complete cycle, including measure, wait, and flush 
+3) wait = your wait period 
+4) measure = your measure period
+
+```{r extract_data, warning=FALSE, message=FALSE}
+apoly_cr.int <- calc_rate.int(apoly_insp, 
+                              starts= 400, 
+                              wait= 20, 
+                              measure= 180, 
+                              by="row")
+
+```
+
+Rates are calculated for each cycle, but only the first 20 will be plotted. The values for the extracted slopes can be seen below 
+
+```{r extract_data_summary}
+apoly_cr.int$summary 
+```
+
+
+
+### adjust rates for background 
+
+```{r adjust_rates-background}
+
+apoly_cr.int_adj <- adjust_rate(apoly_cr.int, 
+                                by = bg_pre, 
+                                by2 = bg_post, 
+                                time_by = exp_start, 
+                                time_by2 = exp_end,
+                                method = "linear") 
+
+apoly_cr.int_adj$summary 
+
+temperature.data <- apoly_insp$dataframe %>% 
+  full_join(select(firesting2, c("dTIME","Oxygen","Temperature")), by="dTIME") %>% 
+  mutate(time = dTIME) |> 
+  select(c("time","Temperature"))
+
+
+```
+
+### Convert the adjust rates to useable units 
+
+```{r adjust_rates, warning=FALSE, message=FALSE}
+#--- extract summary table and add temp ---#
+summ <- apoly_cr.int_adj$summary |> 
+  dplyr::inner_join(temperature.data, by="time") |> 
+  mutate(Temperature = as.numeric(Temperature))
+
+# loop convert_rate
+for(i in 1:nrow(summ)) {
+  results <- convert_rate(summ$rate.adjusted[i], # rate from each rep
+                          oxy.unit = "%Air", 
+                          time.unit = "secs", 
+                          output.unit = "mg/h/kg",
+                          volume = 0.05, 
+                          mass = mass, 
+                          S = salinity, 
+                          t = summ$Temperature[i], # temperature from each rep
+                          P = 1.019)$summary # to extract only summary table
+  if(i == 1) apoly_cr.int_adj_conv <- results
+  if(i > 1) apoly_cr.int_adj_conv <- rbind(apoly_cr.int_adj_conv, results)
+}
+
+```
+
+### Merge run data with converted adjusted rates
+
+```{r merge-dataframes}
+RMR.raw <-  apoly_cr.int_adj$summary |> 
+  select(names(apoly_cr.int_adj$summary)[c(1,3:11,15)]) |>  
+  rename(rate.input = rate.adjusted) |>
+  inner_join(select(apoly_cr.int_adj_conv, names(apoly_cr.int_adj_conv)[c(2,13,16:29)]), by="rate.input") |> 
+  inner_join(temperature.data, by="time")
+```
+
+### Quailty control 
+
+```{r qc}
+RMR.filtered <- RMR.raw |> 
+  filter(rsq >= 0.95)  
+```
+
+#### Slopes discarded 
+```{r slopes discarded, echo=FALSE}
+nrow(RMR.raw)-nrow(RMR.filtered) 
+
+ggplot(RMR.raw, aes(x=time, y=rate.output*-1)) + 
+  geom_point(color = "red", size = 2) + 
+  geom_point(data = RMR.filtered, aes(x=time, y=rate.output*-1), 
+             color = "black", size = 2.1) +
+  xlab("Time") + ylab("Rate") + 
+  theme_classic() 
+```
+
+Lets look at the slopes that were discarded 
+
+```{r warning=FALSE, message=FALSE}
+discarded.slopes <- anti_join(RMR.raw, RMR.filtered, by="rep")
+discarded.slopes$rep
+plot(apoly_cr.int, pos = c(discarded.slopes$rep))
+```
+
+
+### Adding metadata
+```{r, eval=TRUE, warning=FALSE, message=FALSE}
+clutch_data <- read_delim("import_files/clutch_data_2022_2023.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE) |>
+  clean_names() |> 
+  mutate(clutch_number = as.factor(clutch_number))
+
+ctmax.resp <- RMR.filtered |> 
+  mutate(rate.output2 = rate.output*mass) |>
+  mutate(time_lag_sec = time - time[1], 
+         time_lag_min = time_lag_sec/60,
+         sampleID = FISH_ID, 
+         exp_date = Date1)%>% 
+  select(32,31,1:7,29,30,8:26,28,27) |> 
+  separate(sampleID, c("clutch_number","reef.abbrv","tank","dev.temp","replicate"), remove=FALSE) |> 
+  mutate(clutch_number = as.factor(clutch_number)) |>
+  inner_join(select(clutch_data, names(clutch_data)[c(1,4:15,19,20,26,29,30,38)]), by="clutch_number") |> 
+  select(1:8,38:55,9:37) |> 
+  mutate(exp_date = as.POSIXct(exp_date, format ="%d/%m/%Y"),
+         date_of_hatch = as.POSIXct(date_of_hatch, format = "%d/%m/%Y"),
+         age = exp_date - date_of_hatch, 
+         rate.output = rate.output*-1, 
+         rate.output2 = rate.output2*-1)
+```
+
+### Save data
+```{r save data}
+save(ctmax.resp, file = paste0("./resp_datafiles_r/",FISH_ID,".RData"))
+write.csv(ctmax.resp, file = paste0("./resp_datafiles_csv/",FISH_ID,".csv"))
+``` 
+
