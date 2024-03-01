@@ -44,13 +44,12 @@ setwd("[PATH TO DIRECTORY]")
 Only some of this data is needed in the analysis, but others are good to include to make sure that you are working with the correct data file. The necessary variables include **mass**, **chamber**, **temperature**, **salinity**, and **chamber_vol**.
 
 ```{r speciment data, cache=TRUE}
-FISH_ID = "107.CPRE.149.30.1"
-mass = 0.0013943 #in kilograms 
-chamber = "ch3" 
+FISH_ID = "101.STBI.135.30.1"
+mass = 0.0011104 #in kilograms 
+chamber = "ch4" 
 salinity = 37 
-chamber_vol = 0.07177
-temperature = 30
-system1 = "DELL" 
+chamber_vol = 0.06891
+system1 = "ASUS" 
 Date1 = "14/07/2023" 
 Tstart = "10:01:50"
 Tend = "17:37:57"
@@ -369,7 +368,8 @@ ctmax.resp <- RMR.filtered |>
   mutate(time_lag_sec = time - time[1], 
          time_lag_min = time_lag_sec/60,
          sampleID = FISH_ID, 
-         exp_date = Date1)%>% 
+         exp_date = Date1, 
+         system = system1)%>% 
   select(32,31,1:7,29,30,8:26,28,27) |> 
   separate(sampleID, c("clutch_number","reef.abbrv","tank","dev.temp","replicate"), remove=FALSE) |> 
   mutate(clutch_number = as.factor(clutch_number)) |>
