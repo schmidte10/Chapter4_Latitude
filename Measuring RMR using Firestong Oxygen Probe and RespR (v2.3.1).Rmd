@@ -44,15 +44,15 @@ setwd("[PATH TO DIRECTORY]")
 Only some of this data is needed in the analysis, but others are good to include to make sure that you are working with the correct data file. The necessary variables include **mass**, **chamber**, **temperature**, **salinity**, and **chamber_vol**.
 
 ```{r speciment data, cache=TRUE}
-FISH_ID = "96.CARL.157.31,5.1"
-mass = 0.0017159 #in kilograms 
-chamber = "ch1" 
-salinity = 37 
-chamber_vol = 0.07165
+FISH_ID = "65.LSBI.341.28,5.1"
+mass = 0.0017416 #in kilograms 
+chamber = "ch4" 
+salinity = 36 
+chamber_vol = 0.06891
 system1 = "ASUS" 
-Date1 = "14/07/2023" 
-Tstart = "10:17:42"
-Tend = "18:04:20"
+Date1 = "10/06/2023" 
+Tstart = "11:10:11"
+Tend = "18:26:32"
 
 ```
 
@@ -63,14 +63,14 @@ Just a quick note that in this file I have muted some warnings and messages, how
 Now we will import our firesting file. There are a couple special notes to make about code that was run above. The code above was imported via the package _readr_ which gets loaded when load the _tidyverse_ package. This has the benefit of letting you see what the dataframe will look like before importing it and I highly suggest you do this the first time that you import your data. Secondly, you may have to **skip** the first 19 rows from the firesting file as these rows contain metadata, and not the actually oxygen data that you will be using.  
 #### Importing experiment data
 ```{r importing data, cache=TRUE, warning=FALSE, echo=TRUE, results="hide"}
-firesting <- read_delim("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 14 July 2023 10 17AM/Oxygen data raw/firesting.txt", 
+firesting <- read_delim("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 10 June 2023 11 09AM/Oxygen data raw/firesting.txt", 
                              delim = "\t", escape_double = FALSE, 
                              col_types = cols(`...2` = col_time(format = "%H:%M:%S")), 
                              trim_ws = TRUE, skip = 18) 
 firesting <- firesting[-1,]
 
-pre_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 14 July 2023 09 39AM/All slopes" 
-post_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 14 July 2023 06 10PM/All slopes"
+pre_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 10 June 2023 10 26AM/All slopes" 
+post_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 10 June 2023 06 30PM/All slopes"
 ```
 
 
