@@ -44,11 +44,11 @@ setwd("[PATH TO DIRECTORY]")
 Only some of this data is needed in the analysis, but others are good to include to make sure that you are working with the correct data file. The necessary variables include **mass**, **chamber**, **temperature**, **salinity**, and **chamber_vol**.
 
 ```{r speciment data, cache=TRUE}
-FISH_ID = "65.LSBI.341.28,5.1"
-mass = 0.0017416 #in kilograms 
-chamber = "ch4" 
+FISH_ID = "75.LSBICHA.139.28,5.2"
+mass = 0.0011260 #in kilograms 
+chamber = "ch1" 
 salinity = 36 
-chamber_vol = 0.06891
+chamber_vol = 0.07165
 system1 = "ASUS" 
 Date1 = "10/06/2023" 
 Tstart = "11:10:11"
@@ -228,7 +228,7 @@ exp_end_dTIME <- firesting2[exp_end, "dTIME"]
 
 
 apoly_insp <- firesting2 |> 
-  subset_data(from = exp_start_dTIME[[1]], 
+  subset_data(from = 3500, 
               to = exp_end_dTIME[[1]], 
               by="time") 
 ```
@@ -283,7 +283,7 @@ temperature.data <- apoly_insp$dataframe %>%
   full_join(select(firesting2, c("dTIME","Oxygen","Temperature")), by="dTIME") %>% 
   mutate(time = dTIME) |> 
   select(c("time","Temperature")) |> 
-  mutate(Temperature = as.numeric(Temperature) + 0.2)
+  mutate(Temperature = as.numeric(Temperature) + 0.3)
 
 
 ```
