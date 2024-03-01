@@ -280,7 +280,8 @@ apoly_cr.int_adj$summary
 temperature.data <- apoly_insp$dataframe %>% 
   full_join(select(firesting2, c("dTIME","Oxygen","Temperature")), by="dTIME") %>% 
   mutate(time = dTIME) |> 
-  select(c("time","Temperature"))
+  select(c("time","Temperature"))|> 
+  mutate(Temperature = as.numeric(Temperature)+0.1)
 
 
 ```
