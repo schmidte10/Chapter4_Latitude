@@ -369,12 +369,13 @@ ctmax.resp <- RMR.filtered |>
   mutate(time_lag_sec = time - time[1], 
          time_lag_min = time_lag_sec/60,
          sampleID = FISH_ID, 
-         exp_date = Date1)%>% 
-  select(32,31,1:7,29,30,8:26,28,27) |> 
+         exp_date = Date1, 
+         system = system1)%>% 
+  select(32,31,1:7,29,30,33,8:26,28,27) |> 
   separate(sampleID, c("clutch_number","reef.abbrv","tank","dev.temp","replicate"), remove=FALSE) |> 
   mutate(clutch_number = as.factor(clutch_number)) |>
   inner_join(select(clutch_data, names(clutch_data)[c(1,4:15,19,20,26,29,30,38)]), by="clutch_number") |> 
-  select(1:8,38:55,9:37) |> 
+  select(1:8,39:56,9:38) |> 
   mutate(exp_date = as.POSIXct(exp_date, format ="%d/%m/%Y"),
          date_of_hatch = as.POSIXct(date_of_hatch, format = "%d/%m/%Y"),
          age = exp_date - date_of_hatch, 
