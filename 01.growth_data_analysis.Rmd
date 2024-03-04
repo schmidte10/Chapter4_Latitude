@@ -1,0 +1,81 @@
+---
+title: "Chapter4: Latitude - Growth Data"
+author: "Elliott Schmidt"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    toc: true  
+    toc_depth: 6 
+    toc_float: true
+    df_print: paged
+---
+# Scenario 
+
+Within this chapter developmental plasticity was explored within _Acanthochromis polyacanthus_ that were collected from two different regions (i.e., low-latitude, Cairns, and high-latitude, Mackay). Fish were held in common garden experiments at 28.5 C. Clutch data was collected along with parental morphometeric data to determine how fish from each population performed at 28.5 C, a temperature that was shown to produce similar absoluate aerobic scope performances in a previous study [link]. Once hatched offspring were placed into three different temperature treatments, 28.5, 30, and 31.5 C. After approximately 5-6 months offspring length and weight was measured, as well as CTmax and respiration during CTmax trials. 
+
+# Load packages 
+
+```{r load packages, warning=FALSE, message=FALSE}
+library(tidyverse) # data manipulation
+
+```
+
+# Set working directory 
+
+```{r setwd, echo=FALSE}
+knitr::opts_knit$set(root.dir=""C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude"")
+``` 
+
+```{r setwd-2, echo=TRUE, eval=FALSE}
+knitr::opts_knit$set(root.dir=working.dir)
+```
+
+# Import data 
+
+```{r import-data}
+growth <- read_delim("import_files/growth_data.txt", 
+    delim = "\t", escape_double = FALSE, 
+    col_types = cols(NOTES = col_skip(), 
+        ...16 = col_skip(), ...17 = col_skip()), 
+    trim_ws = TRUE) 
+
+clutch_data <- read_delim("import_files/clutch_data_2022_2023.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE) %>% 
+  mutate(CLUTCH_NUMBER = as.factor(CLUTCH_NUMBER))
+```
+
+# Data manipulation 
+
+```{r data-manipulation, warning=FALSE}
+growth2 <- growth |> 
+  mutate(CLUTCH_NUMBER = as.factor(CLUTCH_NUMBER), 
+         MALE = as.factor(MALE), 
+         FEMALE = as.factor(FEMALE), 
+         REGION = as.factor(REGION), 
+         POPULATION = as.factor(POPULATION), 
+         DATE_OF_HATCH = as.Date(DATE_OF_HATCH, format = "%d/%m/%Y"), 
+         DATE_SAMPLED = as.Date(DATE_SAMPLED, format = "%d/%m/%Y"), 
+         DEV_TEMP = as.factor(DEV_TEMP), 
+         TANK = as.factor(TANK), 
+         REP = as.factor(REP), 
+         LENGTH = as.numeric(LENGTH), 
+         MASS = as.numeric(MASS), 
+         FULTONK = (1000*MASS)/(LENGTH^3), # Adding FULTON'S K metric
+         EXPERIMENT = as.factor(EXPERIMENT)) |> 
+  full_join(select(clutch_data, c("CLUTCH_NUMBER",
+                                   "MALE_STANDARD_LENGTH", 
+                                   "MALE_MASS", 
+                                   "MALE_LAT", 
+                                   "MALE_LONG", 
+                                   "FEMALE_STANDARD_LENGTH", 
+                                   "FEMALE_MASS", 
+                                   "FEMALE_LAT", 
+                                   "FEMALE_LONG", 
+                                   "CLUTCH_ORDER", 
+                                   "DAYS_IN_TREATMENT", 
+                                   "EGG_COUNT", 
+                                   "HATCHING_SUCCESS")), by = "CLUTCH_NUMBER") |> 
+  select(c(1:6,16:27,7:13,15,14)) |> 
+  mutate(CLUTCH_ORDER = as.factor(CLUTCH_ORDER))
+```
