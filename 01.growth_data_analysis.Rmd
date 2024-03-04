@@ -15,14 +15,14 @@ Within this chapter developmental plasticity was explored within _Acanthochromis
 
 # Load packages 
 
-```{r load packages, warning=FALSE, message=FALSE}
+```{r load-packages-1, warning=FALSE, message=FALSE}
 library(tidyverse) # data manipulation
 
 ```
 
 # Set working directory 
 
-```{r setwd, echo=FALSE}
+```{r setwd-1, echo=FALSE}
 knitr::opts_knit$set(root.dir=""C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude"")
 ``` 
 
@@ -32,7 +32,7 @@ knitr::opts_knit$set(root.dir=working.dir)
 
 # Import data 
 
-```{r import-data}
+```{r import-data-1}
 growth <- read_delim("import_files/growth_data.txt", 
     delim = "\t", escape_double = FALSE, 
     col_types = cols(NOTES = col_skip(), 
@@ -47,7 +47,11 @@ clutch_data <- read_delim("import_files/clutch_data_2022_2023.txt",
 
 # Data manipulation 
 
-```{r data-manipulation, warning=FALSE}
+```{r data-manipulation-1, warning=FALSE}
+density <- count(growth, CLUTCH_NUMBER, TANK) |> 
+  rename(DENSITY = n) |> 
+  mutate(CLUTCH_NUMBER = as.factor(CLUTCH_NUMBER), 
+         TANK = as.factor(TANK)) 
 growth2 <- growth |> 
   mutate(CLUTCH_NUMBER = as.factor(CLUTCH_NUMBER), 
          MALE = as.factor(MALE), 
@@ -77,5 +81,49 @@ growth2 <- growth |>
                                    "EGG_COUNT", 
                                    "HATCHING_SUCCESS")), by = "CLUTCH_NUMBER") |> 
   select(c(1:6,16:27,7:13,15,14)) |> 
-  mutate(CLUTCH_ORDER = as.factor(CLUTCH_ORDER))
+  drop_na(EXPERIMENT) |>
+  mutate(CLUTCH_ORDER = as.factor(CLUTCH_ORDER), 
+         EXP_GROUP = as.factor(paste0(REGION,"_",DEV_TEMP))) |> 
+  inner_join(density, by=c("CLUTCH_NUMBER","TANK"))
+```
+
+# Exploratory data analysis 
+
+```{r eda-1} 
+par(mfrow=c(2,2))
+
+ggplot(growth2, aes(y=LENGTH, x=MASS)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  theme_classic() 
+
+ggplot(growth2, aes(y=LENGTH, x=MASS, color=REGION)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  theme_classic()  
+
+ggplot(growth2, aes(y=LENGTH, x=MASS, color=POPULATION)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  theme_classic()  
+
+ggplot(growth2, aes(y=LENGTH, x=MASS, color=CLUTCH_NUMBER)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  theme_classic() + 
+  theme(legend.position = "none")
+```
+
+
+
+```{r eda-999}
+ggplot(growth2, aes(y=LENGTH, x=EXP_GROUP, fill=REGION)) + 
+  geom_boxplot(color="black") + 
+  theme_classic() + 
+  theme(axis.text.x = element_text(angle=45, vjust=0.9, hjust=1))
+
 ```
