@@ -7,7 +7,16 @@ output:
     toc: true  
     toc_depth: 6 
     toc_float: true
+    code_folding: show
+    collapse: no
     df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 6
+    highlight: monochrome
+    theme: cerulean
+    latex_engine: xelatex
+    
 ---
 # Scenario 
 
@@ -17,13 +26,18 @@ Within this chapter developmental plasticity was explored within _Acanthochromis
 
 ```{r load-packages-1, warning=FALSE, message=FALSE}
 library(tidyverse) # data manipulation
-
+library(ggpubr) # figure arrangement 
+library(brms) # Bayesian models
+library(StanHeaders)# needed to run Bayesian models
+library(rstan) # needed to run Bayesian models
+library(standist) # needs to be installed 
+library(bayesplot) # needed for MCMC diagnostics
 ```
 
 # Set working directory 
 
 ```{r setwd-1, echo=FALSE}
-knitr::opts_knit$set(root.dir=""C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude"")
+knitr::opts_knit$set(root.dir="C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude")
 ``` 
 
 ```{r setwd-2, echo=TRUE, eval=FALSE}
@@ -32,7 +46,7 @@ knitr::opts_knit$set(root.dir=working.dir)
 
 # Import data 
 
-```{r import-data-1}
+```{r import-data-1, message=FALSE}
 growth <- read_delim("import_files/growth_data.txt", 
     delim = "\t", escape_double = FALSE, 
     col_types = cols(NOTES = col_skip(), 
@@ -84,46 +98,238 @@ growth2 <- growth |>
   drop_na(EXPERIMENT) |>
   mutate(CLUTCH_ORDER = as.factor(CLUTCH_ORDER), 
          EXP_GROUP = as.factor(paste0(REGION,"_",DEV_TEMP))) |> 
-  inner_join(density, by=c("CLUTCH_NUMBER","TANK"))
+  inner_join(density, by=c("CLUTCH_NUMBER","TANK")) |> 
+  mutate(cLENGTH = scale(LENGTH, scale = FALSE)[,1], 
+         cMASS = scale(MASS, scale=FALSE)[,1], 
+         cFULTONK = scale(FULTONK, scale=FALSE)[,1], 
+         cMALE_STANDARD_LENGTH = scale(MALE_STANDARD_LENGTH, scale=FALSE)[,1], 
+         cMALE_MASS = scale(MALE_MASS, scale=FALSE)[,1], 
+         cFEMALE_STANDARD_LENGTH = scale(MALE_STANDARD_LENGTH, scale=FALSE)[,1], 
+         cFEMALE_MASS = scale(MALE_MASS, scale=FALSE)[,1], 
+         cDENSITY = scale(DENSITY, scale=FALSE)[,1])
 ```
 
-# Exploratory data analysis 
+In the code above a number of variables were centered because within these metrics the value **0** is meaningless. For example you cannot have a fish length or mass of 0. Therefore, the mean was subtracted for a given variable was subtracted by every value. The y-intercept for these values will therefore reflect the mean, and the slope can be interpreted as 'y increases/decreases x amount for every 1-unit increase from the mean [INSERT METRIC]'. 
 
-```{r eda-1} 
-par(mfrow=c(2,2))
 
-ggplot(growth2, aes(y=LENGTH, x=MASS)) + 
+# Exploratory data analysis {.tabset-pills}
+
+
+## LENGTH VS. MASS
+
+```{r eda-1, warning=FALSE, message=FALSE, echo=TRUE, fig.height=9, fig.width=9} 
+
+
+p1 <- ggplot(growth2, aes(y=LENGTH, x=MASS)) + 
   geom_point(alpha = 0.5) + 
   geom_smooth(methos="lm", se=TRUE, fill=NA,
               formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("All points") +
   theme_classic() 
 
-ggplot(growth2, aes(y=LENGTH, x=MASS, color=REGION)) + 
+p2 <- ggplot(growth2, aes(y=LENGTH, x=MASS, color=REGION)) + 
   geom_point(alpha = 0.5) + 
   geom_smooth(methos="lm", se=TRUE, fill=NA,
               formula = y~poly(x, 3, raw=TRUE), color = "red") + 
-  theme_classic()  
+  ggtitle("Latitude") +
+  theme_classic() + 
+  theme(legend.position = "none") 
 
-ggplot(growth2, aes(y=LENGTH, x=MASS, color=POPULATION)) + 
+p3 <- ggplot(growth2, aes(y=LENGTH, x=MASS, color=POPULATION)) + 
   geom_point(alpha = 0.5) + 
   geom_smooth(methos="lm", se=TRUE, fill=NA,
               formula = y~poly(x, 3, raw=TRUE), color = "red") + 
-  theme_classic()  
+  ggtitle("Population") +
+  theme_classic()  + 
+  theme(legend.position = "none") 
 
-ggplot(growth2, aes(y=LENGTH, x=MASS, color=CLUTCH_NUMBER)) + 
+p4 <- ggplot(growth2, aes(y=LENGTH, x=MASS, color=CLUTCH_NUMBER)) + 
   geom_point(alpha = 0.5) + 
   geom_smooth(methos="lm", se=TRUE, fill=NA,
               formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("CLUTCH_NUMBER") +
+  theme_classic() + 
+  theme(legend.position = "none") 
+
+p5 <- ggplot(growth2, aes(y=LENGTH, x=MASS, color=DEV_TEMP)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Developmetnal temperature") +
   theme_classic() + 
   theme(legend.position = "none")
+
+ggarrange(p1,p2,p3,p4,p5, 
+          ncol = 2, 
+          nrow=3)
+
 ```
 
 
+## GROUP COMPARISONS
 
-```{r eda-999}
-ggplot(growth2, aes(y=LENGTH, x=EXP_GROUP, fill=REGION)) + 
-  geom_boxplot(color="black") + 
+**NOTE:** On some of the figures ylimits have been set and therefore outliers are hidden
+
+```{r eda-2, warning=FALSE, message=FALSE, fig.width=8}
+plot.length.raw <- ggplot(growth2, aes(y=LENGTH, x=EXP_GROUP, fill=EXP_GROUP)) + 
+  geom_boxplot() + 
   theme_classic() + 
-  theme(axis.text.x = element_text(angle=45, vjust=0.9, hjust=1))
+  theme(axis.text.x = element_text(angle=45, vjust=0.9, hjust=1)) + 
+  scale_fill_manual(values = c("salmon","firebrick1","firebrick4","skyblue","steelblue3","royalblue4")) + 
+  ggtitle("LENGTH")
 
+plot.mass.raw <- ggplot(growth2, aes(y=MASS, x=EXP_GROUP, fill=EXP_GROUP)) + 
+  geom_boxplot() + 
+  theme_classic() + 
+  theme(axis.text.x = element_text(angle=45, vjust=0.9, hjust=1)) + 
+  ylim(0,3) +
+  scale_fill_manual(values = c("salmon","firebrick1","firebrick4","skyblue","steelblue3","royalblue4")) + 
+  ggtitle("MASS") 
+
+plot.k.raw <- ggplot(growth2, aes(y=FULTONK, x=EXP_GROUP, fill=EXP_GROUP)) + 
+  geom_boxplot() + 
+  theme_classic() + 
+  theme(axis.text.x = element_text(angle=45, vjust=0.9, hjust=1)) + 
+  ylim(0.02,0.05) +
+  scale_fill_manual(values = c("salmon","firebrick1","firebrick4","skyblue","steelblue3","royalblue4")) + 
+  ggtitle("FULTON'S K") 
+
+ggarrange(plot.length.raw,plot.mass.raw ,plot.k.raw, 
+          ncol = 3, 
+          nrow=1, 
+          common.legend = TRUE, 
+          legend = "bottom")
+``` 
+
+## distribution
+
+```{r eda-3, warning=FALSE, message=FALSE}
+p.length <- ggplot(growth2, aes(x=LENGTH)) + 
+  geom_density()+
+  theme_classic() 
+p.mass <- ggplot(growth2, aes(x=MASS)) + 
+  geom_density()+
+  theme_classic() 
+
+ggarrange(p.length,p.mass, 
+          ncol=2, 
+          nrow=1)
+``` 
+
+## Parent mass and length
+
+```{r}
+male.mass.plot <- ggplot(growth2, aes(x=MALE_MASS, y=MASS)) + 
+  geom_point(alpha = 0.5) + 
+  ggtitle("Farther vs. offspring mass") +
+  theme_classic() 
+
+female.mass.plot <- ggplot(growth2, aes(x=FEMALE_MASS, y=MASS)) + 
+  geom_point(alpha = 0.5) + 
+  ggtitle("Mother vs. offspring mass") +
+  theme_classic()  
+
+male.length.plot <- ggplot(growth2, aes(x=MALE_STANDARD_LENGTH, y=LENGTH)) + 
+  geom_point(alpha = 0.5) + 
+  ggtitle("Farther vs. offspring length") +
+  theme_classic() 
+
+female.length.plot <- ggplot(growth2, aes(x=FEMALE_STANDARD_LENGTH, y=LENGTH)) + 
+  geom_point(alpha = 0.5) + 
+  ggtitle("Mother vs. offspring length") +
+  theme_classic()  
+
+ggarrange(male.mass.plot, female.mass.plot, male.length.plot, female.length.plot, 
+          ncol=2, 
+          nrow=2)
 ```
+# {-} 
+
+# Statistical analysis {.tabset-pills}
+
+## Length
+
+### Fit model {.tabset-pills}
+
+Great lets start to fit our models. There are number of variables within our data frame some of which may or may not be important. To investigate which variables are important and which are not will test different hypotheses that use different combinations of variables that are suited to answer reasonable hypotheses.  
+
+We will start modelling the standard length of juveniles.
+
+First we will test 3 different hypotheses as described below in more detail. All hypotheses-testing models will have **LENGTH** as the response variable as well as **DEV_TEMP** and **DENSITY** as independent variables. Note that within these models there are no random variables, we will examine random variables in later steps.  
+
+1. The first model will test that hypotheses that juvenile length at different developmental temperatures will also be heavily influenced by the length of the parents. Therefore, this model will include both **MALE_STANDARD_LENGTH** and **FEMALE_STANDARD_LENGTH**. However, it is important to note that the length of parents will like be related to each other (i.e., _collinearity_). We will confirm this assumption with some model validation descriptive statistics. This hypothesis can be seen as out _'basic'_ model.  
+
+**NOTE:** Although not displayed this model will only include **FEMALE_STANDARD_LENGTH**, when both *MALE_* and *FEMALE_* standard length are included the model is very unhappy due to the collinearity between the two variables. 
+
+2. The second model is based around the clutch/maternal conditions. Additional variables will include **FEMALE_STANDARD_LENGTH**, **DAYS_IN_TEMPERATURE** -applies to parents, **EGG_COUNT**, and **HATCHING_SUCCESS**. The idea of this hypothesis is that offspring length may be determined by early life conditions such as the size of the mother, how long the mother was exposed to potentially stressful conditions, how wide or narrow reproductive energy was spread, as well as the potential 'health' (as indicated by hatching success) of the clutch. 
+
+3. The last model is a geographic model and will include **FEMALE_STANDARD_LENGTH**, **FEMALE_LATITUDE**, **REGION**, and **POPULATION**. In all but a few cases the farther and mother are from the same reef, therefore **FEMALE_LATITUDE** should be the same as **MALE_LATITUDE**, as well as **POPULATION** 
+
+Once these models are run will be investigate their summary statistics to determine which factors were/were not deemed to have an impact on variation explained. Further models containing combinations of variables may also be explored depending on results.
+
+Also because we are doing Bayesian modelling we will be listing priors. Our length data is normally distributed as shown in some of the exploratory data analysis plots. We can confirm this assumption during the model validation stage as well. Out starting priors will be uninformative priors with distribution of gaussian(0,1), this may or may not change as we progress. 
+
+#### Basic model
+```{r fit-model-1, cache=TRUE}
+#model1.priors <- c(set_prior("normal(0,1)", class = "b", coef="DEV_TEMP30"), 
+                   #set_prior("normal(0,1)", class = "b", coef="DEV_TEMP31.5"),
+                   #set_prior("normal(0,1)", class = "b", coef="cFEMALE_STANDARD_LENGTH"),
+                   #set_prior("normal(0,1)", class = "b", coef="cDENSITY")); model1.priors
+model1 <- brm(cLENGTH ~ DEV_TEMP + cFEMALE_STANDARD_LENGTH + cDENSITY,
+              family=gaussian(),
+              data = growth2, 
+              warmup = 1000, 
+              iter = 5000, 
+              chains = 4, 
+              thin = 5, 
+              refresh = 0) 
+prior_summary(model1) 
+```
+In this summary statistic table it tells us: 
+
+* for the intercept, it is using a student t(flatter normal) prior with a mean of 0.1 and a standard deviation of 3.8. These values are derived from the median and median absolute deviation of the response variable 
+
+```{r fit-model-1-1}
+median(na.omit(growth2$cLENGTH))
+```
+
+```{r fit-model-1-2}
+mad(na.omit(growth2$cLENGTH))
+```
+
+```{r fit-model-1-3}
+standist::visualize("student_t(3,0.135,3.8325)", xlim=c(-10,1000))
+standist::visualize("student_t(3,0,3.8325)", xlim=c(-10,500))
+```
+
+* for the beta coefficients, including **cDENSITY**, **cFEMALE_STANDARD_LENGTH**, **DEV_TEMP**, the default priors are inproper flat priors. 
+
+* The prior on sigma is also a student t with a mean of **0** and a standard deviation of **3.8** 
+
+
+##### MCMC sampling diagnostics {.tabset-pills} 
+
+###### bayesplot 
+
+```{r mcmc-diag-model1-1, fig.height=9}
+mcmc_plot(model1, type='combo')
+mcmc_plot(model1, type='trace') 
+mcmc_plot(model1, type='dens_overlay') 
+mcmc_plot(model1, type='acf_bar')
+mcmc_plot(model1, type='rhat_hist')
+mcmc_plot(model1, type='neff_hist') # one ratio is <0.5 may have to tigthen up the prior for this 
+```
+
+###### stan plots
+```{r mcmc-diag-model1-1, fig.height=9}
+stan_trace(model1$fit)
+stan_ac(model1$fit) 
+stan_rhat(model1$fit) 
+stan_ess(model1$fit)
+stan_dens(model1$fit, separate_chains = TRUE)
+```
+
+##### {-} 
+
+#### Maternal effects model 
+
