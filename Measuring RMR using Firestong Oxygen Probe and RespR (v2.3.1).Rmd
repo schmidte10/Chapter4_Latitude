@@ -44,11 +44,11 @@ setwd("[PATH TO DIRECTORY]")
 Only some of this data is needed in the analysis, but others are good to include to make sure that you are working with the correct data file. The necessary variables include **mass**, **chamber**, **temperature**, **salinity**, and **chamber_vol**.
 
 ```{r speciment data, cache=TRUE}
-FISH_ID = "74.LSBICHA.227.31,52"
-mass = 0.0009628 #in kilograms 
-chamber = "ch3" 
+FISH_ID = "75.LSBICHA.139.28,5.1"
+mass = 0.0013105 #in kilograms 
+chamber = "ch4" 
 salinity = 36 
-chamber_vol = 0.07177
+chamber_vol = 0.07160
 system1 = "DELL" 
 Date1 = "10/06/2023" 
 
