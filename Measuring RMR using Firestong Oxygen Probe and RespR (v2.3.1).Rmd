@@ -44,11 +44,11 @@ setwd("[PATH TO DIRECTORY]")
 Only some of this data is needed in the analysis, but others are good to include to make sure that you are working with the correct data file. The necessary variables include **mass**, **chamber**, **temperature**, **salinity**, and **chamber_vol**.
 
 ```{r speciment data, cache=TRUE}
-FISH_ID = "65.LSBI.341.28,5.2"
-mass = 0.0017568 #in kilograms 
-chamber = "ch1" 
+FISH_ID = "74.LSBICHA.227.31,52"
+mass = 0.0009628 #in kilograms 
+chamber = "ch3" 
 salinity = 36 
-chamber_vol = 0.07050
+chamber_vol = 0.07177
 system1 = "DELL" 
 Date1 = "10/06/2023" 
 
@@ -304,7 +304,7 @@ for(i in 1:nrow(summ)) {
                           oxy.unit = "%Air", 
                           time.unit = "secs", 
                           output.unit = "mg/h/kg",
-                          volume = 0.05, 
+                          volume = chamber_vol, 
                           mass = mass, 
                           S = salinity, 
                           t = summ$Temperature[i], # temperature from each rep
@@ -330,7 +330,7 @@ RMR.raw <-  apoly_cr.int_adj$summary |>
 
 ```{r qc}
 RMR.filtered <- RMR.raw |> 
-  filter(rsq >= 0.90)  
+  filter(rsq >= 0.95)  
 ```
 
 #### Slopes discarded 
