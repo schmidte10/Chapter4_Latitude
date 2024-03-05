@@ -44,7 +44,7 @@ setwd("[PATH TO DIRECTORY]")
 Only some of this data is needed in the analysis, but others are good to include to make sure that you are working with the correct data file. The necessary variables include **mass**, **chamber**, **temperature**, **salinity**, and **chamber_vol**.
 
 ```{r speciment data, cache=TRUE}
-FISH_ID = "120.CPRE.336.28,5.1"
+FISH_ID = "120.CPRE.336.28,5.2"
 mass = 0.0010624 #in kilograms 
 chamber = "ch4" 
 salinity = 36 
@@ -257,7 +257,7 @@ apoly_cr.int <- calc_rate.int(apoly_insp,
                               wait= 60, 
                               measure= 120, 
                               by="time") 
-plot(apoly_cr.int, pos=c(60:70))
+plot(apoly_cr.int, pos=c(60:69))
 ```
 
 Rates are calculated for each cycle, but only the first 20 will be plotted. The values for the extracted slopes can be seen below 
@@ -285,7 +285,7 @@ temperature.data <- apoly_insp$dataframe %>%
   full_join(select(firesting2, c("dTIME","Oxygen","Temperature")), by="dTIME") %>% 
   mutate(time = dTIME) |> 
   select(c("time","Temperature")) |> 
-  mutate(Temperature = as.numeric(Temperature))
+  mutate(Temperature = as.numeric(Temperature)+0.05)
 
 
 ```
@@ -304,7 +304,7 @@ for(i in 1:nrow(summ)) {
                           oxy.unit = "%Air", 
                           time.unit = "secs", 
                           output.unit = "mg/h/kg",
-                          volume = 0.05, 
+                          volume = chamber_vol, 
                           mass = mass, 
                           S = salinity, 
                           t = summ$Temperature[i], # temperature from each rep
@@ -323,14 +323,14 @@ RMR.raw <-  apoly_cr.int_adj$summary |>
   rename(rate.input = rate.adjusted) |>
   inner_join(select(apoly_cr.int_adj_conv, names(apoly_cr.int_adj_conv)[c(2,13,16:29)]), by="rate.input") |> 
   inner_join(temperature.data, by="time") |> 
-  mutate(Temperature = as.numeric(Temperature) + 0.15)
+  mutate(Temperature = as.numeric(Temperature))
 ```
 
 ### Quailty control 
 
 ```{r qc}
 RMR.filtered <- RMR.raw |> 
-  filter(rsq >= 0.90)  
+  filter(rsq >= 0.95)  
 ```
 
 #### Slopes discarded 
