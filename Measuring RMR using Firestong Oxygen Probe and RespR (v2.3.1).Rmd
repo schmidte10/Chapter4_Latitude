@@ -44,12 +44,12 @@ setwd("[PATH TO DIRECTORY]")
 Only some of this data is needed in the analysis, but others are good to include to make sure that you are working with the correct data file. The necessary variables include **mass**, **chamber**, **temperature**, **salinity**, and **chamber_vol**.
 
 ```{r speciment data, cache=TRUE}
-FISH_ID = "87.CRUS.340.28,5.1"
-mass = 0.0015542 #in kilograms 
+FISH_ID = "74.LSBICHA.144.28,5.1"
+mass = 0.0029238 #in kilograms 
 chamber = "ch1" 
 salinity = 37 
-chamber_vol = 0.07165
-system1 = "ASUS" 
+chamber_vol = 0.07050
+system1 = "DELL" 
 Date1 = "16/06/2023" 
 
 
@@ -62,17 +62,17 @@ Just a quick note that in this file I have muted some warnings and messages, how
 Now we will import our firesting file. There are a couple special notes to make about code that was run above. The code above was imported via the package _readr_ which gets loaded when load the _tidyverse_ package. This has the benefit of letting you see what the dataframe will look like before importing it and I highly suggest you do this the first time that you import your data. Secondly, you may have to **skip** the first 19 rows from the firesting file as these rows contain metadata, and not the actually oxygen data that you will be using.  
 #### Importing experiment data
 ```{r importing data, cache=TRUE, warning=FALSE, echo=TRUE, results="hide"}
-firesting <- read_delim("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 16 June 2023 10 42AM/Oxygen data raw/firesting.txt", 
+firesting <- read_delim("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/DELL/Experiment_ 16 June 2023 10 24AM/Oxygen data raw/firesting.txt", 
                              delim = "\t", escape_double = FALSE, 
                              col_types = cols(`...2` = col_time(format = "%H:%M:%S")), 
                              trim_ws = TRUE, skip = 18) 
 firesting <- firesting[-1,]
 
-pre_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 16 June 2023 09 59AM/All slopes" 
-post_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 16 June 2023 06 41PM/All slopes"
+pre_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/DELL/Experiment_ 16 June 2023 09 39AM/All slopes" 
+post_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/DELL/Experiment_ 16 June 2023 06 20PM/All slopes"
 
-Tstart = "10:43:00"
-Tend = "18:38:14"
+Tstart = "10:25:13"
+Tend = "18:20:06"
 ```
 
 
@@ -284,7 +284,7 @@ temperature.data <- apoly_insp$dataframe %>%
   full_join(select(firesting2, c("dTIME","Oxygen","Temperature")), by="dTIME") %>% 
   mutate(time = dTIME) |> 
   select(c("time","Temperature")) |> 
-  mutate(Temperature = as.numeric(Temperature) + 0.2)
+  mutate(Temperature = as.numeric(Temperature))
 
 
 ```
@@ -303,7 +303,7 @@ for(i in 1:nrow(summ)) {
                           oxy.unit = "%Air", 
                           time.unit = "secs", 
                           output.unit = "mg/h/kg",
-                          volume = 0.05, 
+                          volume = chamber_vol, 
                           mass = mass, 
                           S = salinity, 
                           t = summ$Temperature[i], # temperature from each rep
@@ -322,14 +322,14 @@ RMR.raw <-  apoly_cr.int_adj$summary |>
   rename(rate.input = rate.adjusted) |>
   inner_join(select(apoly_cr.int_adj_conv, names(apoly_cr.int_adj_conv)[c(2,13,16:29)]), by="rate.input") |> 
   inner_join(temperature.data, by="time") |> 
-  mutate(Temperature = as.numeric(Temperature)+0.2)
+  mutate(Temperature = as.numeric(Temperature))
 ```
 
 ### Quailty control 
 
 ```{r qc}
 RMR.filtered <- RMR.raw |> 
-  filter(rsq >= 0.90)  
+  filter(rsq >= 0.95)  
 ```
 
 #### Slopes discarded 
