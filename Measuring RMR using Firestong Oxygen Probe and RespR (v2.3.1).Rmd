@@ -44,13 +44,13 @@ setwd("[PATH TO DIRECTORY]")
 Only some of this data is needed in the analysis, but others are good to include to make sure that you are working with the correct data file. The necessary variables include **mass**, **chamber**, **temperature**, **salinity**, and **chamber_vol**.
 
 ```{r speciment data, cache=TRUE}
-FISH_ID = "56.CARL.158.31,5.2"
-mass = 0.0013004 #in kilograms 
+FISH_ID = "89.LCKM.328.31,5.1"
+mass = 0.0011015 #in kilograms 
 chamber = "ch1" 
-salinity = 36 
 chamber_vol = 0.07165
+salinity = 36 
 system1 = "ASUS" 
-Date1 = "01/06/2023" 
+Date1 = "09/06/2023" 
 
 
 ```
@@ -62,17 +62,17 @@ Just a quick note that in this file I have muted some warnings and messages, how
 Now we will import our firesting file. There are a couple special notes to make about code that was run above. The code above was imported via the package _readr_ which gets loaded when load the _tidyverse_ package. This has the benefit of letting you see what the dataframe will look like before importing it and I highly suggest you do this the first time that you import your data. Secondly, you may have to **skip** the first 19 rows from the firesting file as these rows contain metadata, and not the actually oxygen data that you will be using.  
 #### Importing experiment data
 ```{r importing data, cache=TRUE, warning=FALSE, echo=TRUE, results="hide"}
-firesting <- read_delim("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 01 June 2023 10 36AM/Oxygen data raw/firesting.txt", 
+firesting <- read_delim("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 09 June 2023 10 13AM/Oxygen data raw/firesting.txt", 
                              delim = "\t", escape_double = FALSE, 
                              col_types = cols(`...2` = col_time(format = "%H:%M:%S")), 
                              trim_ws = TRUE, skip = 18) 
 firesting <- firesting[-1,]
 
-pre_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 01 June 2023 10 01AM/All slopes" 
-post_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 01 June 2023 07 25PM/All slopes"
+pre_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 09 June 2023 09 45AM/All slopes" 
+post_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 09 June 2023 06 14PM/All slopes"
 
-Tstart = "10:36:59"
-Tend = "19:25:10"
+Tstart = "10:13:48"
+Tend = "18:10:10"
 ```
 
 
@@ -158,11 +158,21 @@ pre_cycle2 <- read_delim("./Cycle_2.txt",
          ch4 =`ch4 po2`) %>% 
   select(c("Time",chamber)) 
 
+pre_cycle3 <- read_delim("./Cycle_3.txt", 
+    delim = ";", escape_double = FALSE, col_types = cols(Time = col_time(format = "%H:%M:%S"), 
+        ...8 = col_skip()), trim_ws = TRUE) %>% 
+  rename(dTIME = `Seconds from start for linreg`, 
+         ch1 =`ch1 po2`, 
+         ch2 =`ch2 po2`, 
+         ch3 =`ch3 po2`, 
+         ch4 =`ch4 po2`) %>% 
+  select(c("Time",chamber)) 
 
 bg_pre1 <- pre_cycle1 %>% calc_rate.bg()
 bg_pre2 <- pre_cycle2 %>% calc_rate.bg()
+bg_pre3 <- pre_cycle3 %>% calc_rate.bg()
 
-bg_pre <- mean(bg_pre1$rate.bg.mean,bg_pre2$rate.bg.mean)
+bg_pre <- mean(bg_pre1$rate.bg.mean,bg_pre2$rate.bg.mean,bg_pre3$rate.bg.mean)
 bg_pre[bg_pre>0] <- 0
 
 setwd(post_bg_dir)
