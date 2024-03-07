@@ -32,7 +32,10 @@ library(StanHeaders)# needed to run Bayesian models
 library(rstan) # needed to run Bayesian models
 library(standist) # needs to be installed 
 library(bayesplot) # needed for MCMC diagnostics 
-library(DHARMa) # model validation
+library(DHARMa) # model validation 
+library(ggdist) # partial plots 
+library(tidybayes) # partial plots 
+library(broom.mixed) # model investigation
 ```
 
 # Set working directory 
@@ -107,7 +110,8 @@ growth2 <- growth |>
          cMALE_MASS = scale(MALE_MASS, scale=FALSE)[,1], 
          cFEMALE_STANDARD_LENGTH = scale(MALE_STANDARD_LENGTH, scale=FALSE)[,1], 
          cFEMALE_MASS = scale(MALE_MASS, scale=FALSE)[,1], 
-         cDENSITY = scale(DENSITY, scale=FALSE)[,1],
+         cDENSITY = scale(DENSITY, scale=FALSE)[,1], 
+         cAGE_DAYS = scale(AGE_DAYS, scale=FALSE)[,1],
          TANK = as.numeric(as.character(TANK)),
          LEVEL = as.factor(case_when(TANK >= 1 & TANK <= 199 ~ 1,
                            TANK >= 200 & TANK <= 299 ~ 2,
@@ -291,7 +295,7 @@ Also because we are doing Bayesian modelling we will be listing priors. Our leng
 #### Basic model
 ```{r fit-model-1, cache=TRUE}
 
-model1 <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY,
+model1 <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY + cAGE_DAYS,
               family=gaussian(),
               data = growth2, 
               warmup = 4000, 
@@ -362,7 +366,7 @@ summary(model1)
                    #set_prior("normal(0,1)", class = "b", coef="DEV_TEMP31.5"),
                    #set_prior("normal(0,1)", class = "b", coef="cFEMALE_STANDARD_LENGTH"),
                    #set_prior("normal(0,1)", class = "b", coef="cDENSITY")); model.mat.priors
-model.mat <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY + DAYS_IN_TREATMENT + EGG_COUNT + HATCHING_SUCCESS + CLUTCH_ORDER,
+model.mat <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY + cAGE_DAYS + DAYS_IN_TREATMENT + EGG_COUNT + HATCHING_SUCCESS + CLUTCH_ORDER,
               family=gaussian(),
               data = growth2, 
               warmup = 4000, 
@@ -435,7 +439,7 @@ Based on the **model.mat** output **EGG_COUNT** and **HATCHING_SUCCESS** have no
                    #set_prior("normal(0,1)", class = "b", coef="DEV_TEMP31.5"),
                    #set_prior("normal(0,1)", class = "b", coef="cFEMALE_STANDARD_LENGTH"),
                    #set_prior("normal(0,1)", class = "b", coef="cDENSITY")); model.geo.priors
-model.geo <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY + FEMALE_LAT,
+model.geo <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY + cAGE_DAYS + FEMALE_LAT,
               family=gaussian(),
               data = growth2, 
               warmup = 4000, 
@@ -523,12 +527,12 @@ All model comparison methods indicate that **model1** outperforms **model.geo**.
 
 Before we run the model through the model validation steps we will add in our random factors. Our random factors will include **TANK**, **LEVEL**, and **CLUTCH_NUMBER**. 
 
-```{r random-factors-1}
+```{r random-factors-1, cache=TRUE}
 #model1.priors <- c(set_prior("normal(0,1)", class = "b", coef="DEV_TEMP30"), 
                    #set_prior("normal(0,1)", class = "b", coef="DEV_TEMP31.5"),
                    #set_prior("normal(0,1)", class = "b", coef="cFEMALE_STANDARD_LENGTH"),
                    #set_prior("normal(0,1)", class = "b", coef="cDENSITY")); model1.priors
-model1.rf <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY + (1|TANK) + (1|LEVEL) + (1|FEMALE),
+model1.re <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY + cAGE_DAYS + (1|LEVEL) + (1|FEMALE),
               family=gaussian(),
               data = growth2, 
               warmup = 4000, 
@@ -540,23 +544,23 @@ model1.rf <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY 
               thin = 5)  
 #pairs(model1.rf)
 
-summary(model1.rf)
+summary(model1.re)
 ```
 
 ### Model validation {.tabset}
 
 #### DHARMa residuals 
 ```{r model-validation-2}
-pp_check(model1.rf, type = 'dens_overlay')
+pp_check(model1.re, type = 'dens_overlay')
 
-preds <- posterior_predict(model1.rf, ndraws=250, summary=FALSE)
-model1.rf.resids <- createDHARMa(simulatedResponse = t(preds), 
+preds <- posterior_predict(model1.re, ndraws=250, summary=FALSE)
+model1.re.resids <- createDHARMa(simulatedResponse = t(preds), 
                               observedResponse = na.omit(growth2$cLENGTH), 
                               fittedPredictedResponse = apply(preds, 2, median), 
                               integerResponse = 'student')
-plot(model1.rf.resids) 
+plot(model1.re.resids) 
 
-testOutliers(model1.rf)
+
 ```
 
 It looks like there are some issues with the model. Mainly around the presence of outliers. Some of these outliers could be seen in our explanatory data analysis. Let's revisit our raw data to check and remove the presence of outliers. 
@@ -565,4 +569,176 @@ It looks like there are some issues with the model. Mainly around the presence o
 
 ### Removal of outliers
 
-Let's first look at 
+Let's first look at our data exploration plots again to see what the data looks like. 
+
+```{r outlier-removal-1, warning=FALSE, message=FALSE, echo=FALSE, fig.height=9, fig.width=9}
+eda1
+```
+There seems to be three areas that standout as potentially possessing outliers: 
+
+1. The single individual that is >4 grams. This individual is more than double the size of the average individual. 
+2. The cluster of individuals between 1 and 2grams that are below ~25 mm. Also there is no observable trend in this points (i.e., they are not all form the same developmental temperature, clutch, or population, which could have explained why they performed differently). 
+3. Individuals that are floating above the main cluster. These could be individuals that grew rapidly and outcompeted diblings in their tank, or perhaps their tank had low density to begin with.  
+
+Individuals identified in numbered points one and two are not unexpected. These data points will be double check to ensure they were entered correctly, if so they will be removed from the data set. 
+
+```{r outlier-removal-2}
+growth3 <- growth2 |> 
+  filter(MASS < 4, na.rm=TRUE, 
+         FULTONK < 0.079, 
+         FULTONK > 0.01, 
+         DENSITY > 3)  
+```
+
+```{r outlier-removal-3}
+nrow(growth2)- nrow(growth3)
+```
+
+note this also removes NA's therefore the difference in data frames is 21 row: 
+
+* 1 datum point with MASS greater than 4  
+* 1 datum point with high value (removed via FULTONK being less than 0.01) 
+* 2 data points where the tank density was 2
+* 9 data points with low values (removed via FULTONK being greater than 0.079)
+* 8 NA's removed 
+* **Total: 21** 
+
+Now Let's look at out plots again 
+
+```{r outlier-removal-4,  warning=FALSE, message=FALSE, echo=FALSE, fig.height=9, fig.width=9}
+p1.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("All points") +
+  theme_classic(); p1.wo
+
+p2.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=REGION)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) +  
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Latitude") +
+  theme_classic() + 
+  theme(legend.position = "none") 
+
+p3.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=POPULATION)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Population") +
+  theme_classic() +
+  theme(legend.position = "none")
+
+p4.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=CLUTCH_NUMBER)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) +  
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("CLUTCH_NUMBER") +
+  theme_classic() + 
+  theme(legend.position = "none") 
+
+p5.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=DEV_TEMP)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) +  
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Developmetnal temperature") +
+  theme_classic() + 
+  theme(legend.position = "none")
+
+eda2 <- ggarrange(p1.wo,p2.wo,p3.wo,p4.wo,p5.wo, 
+          ncol = 2, 
+          nrow=3); eda2
+```
+
+### Refit model 
+
+```{r model-refit-1, cache=TRUE}
+#--- run model ---#
+model1.re.wo <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY + cAGE_DAYS + (1|LEVEL) + (1|FEMALE),
+              family=gaussian(),
+              data = growth3, 
+              warmup = 4000, 
+              iter = 10000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              chains = 4, 
+              thin = 5, 
+              control = list(adapt_delta=0.9)) 
+
+#--- distribution check ---#
+pp_check(model1.re.wo, type = 'dens_overlay')
+
+#--- DHARMa checks ---#
+preds <- posterior_predict(model1.re.wo, ndraws=250, summary=FALSE)
+model1.re.wo.resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = na.omit(growth3$cLENGTH), 
+                              fittedPredictedResponse = apply(preds, 2, median), 
+                              integerResponse = 'student')
+plot(model1.re.wo.resids) 
+testDispersion(model1.re.wo.resids)
+``` 
+
+I'm hesitant to remove further outliers. The mass of samples that sit above the main cluster don't appear to be random, but rather belong to sets of populations, making me think that these data points are not outliers, but rather may be part of a geniunine pattern. The data set is rather large meaning some diagnositics need to be careful in intrepreting. For example, the KS test is used to detect deviations from the assumed distribution within the model. With such a large sample size small deviations can cause significant differences. If we look at our pp_check plot we can see that our observation and modelled distribution are actually very similar.The DHARMa checks also should that there are still outliers within the dataset and is likely upset about the cluster of points above the main cluster, but as previously stated these data points may be genunine. Once again due to the size of the dataset, this test may be overly sensitive. By looking at the residuals there is no clear pattern despite the DHARMa checks raising an alarm. 
+
+In the case with large datasets visual checks provide additional insight to statistical tests, and in this case out visual analysis seems to point in the direction of our model being appropriate. 
+
+### Partial effects plots 
+
+#### conditional_effects 
+
+```{r partial-plots-cond-eff-1}
+model1.re.wo |> 
+  conditional_effects(spaghetti = TRUE, ndraws=200) 
+``` 
+
+### Model investigation {.tabset}
+
+#### summary 
+
+```{r summary-100}
+summary(model1.re.wo)
+```
+
+#### R2 
+
+```{r r-squared}
+model1.re.wo |> bayes_R2(summary = FALSE) |> median_hdci()
+```
+
+#### tidyMCMC 
+
+```{r tidy}
+tidyMCMC(model1.re.wo, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+```
+
+#### gather draws 
+
+```{r gather_draws}
+#model1.re.wo |> get_variables()
+model1.re.wo |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+  median_hdci()
+``` 
+
+#### bayesplot 
+
+```{r bayesplot-1}
+model1.re.wo |> mcmc_plot(type='intervals')
+```
+
+### {-}
+
+### Hypothesis testing 
+
+
+
