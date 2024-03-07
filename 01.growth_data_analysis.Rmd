@@ -738,7 +738,65 @@ model1.re.wo |> mcmc_plot(type='intervals')
 
 ### {-}
 
-### Hypothesis testing 
+### summary figure {.tabset}
+
+#### Manual
+
+```{r summary-figure-1}
+var <- get_variables(model1.re.wo); var
+var1 <- get_variables(model1.re.wo)[c(1:3,8:9)] ; var1 
+
+int_draws_spread <- model1.re.wo |> spread_draws(!!!syms(var1)) 
+
+int_draws_spread2 <- int_draws_spread |> 
+  gather_draws(b_Intercept, b_REGIONleading) |> 
+  left_join(int_draws_spread, by = c(".chain",".iteration",".draw"))
+  
+  
+int_draws <- int_draws_spread2 |> 
+  mutate(x28.5 = case_when(`.variable` == 'b_Intercept' ~ 
+                                 `.value`, 
+                               `.variable` != 'b_Intercept' ~ 
+                                 `.value` + b_Intercept), 
+         
+         x30 = case_when(`.variable` == 'b_Intercept' ~ 
+                                 `.value` + b_DEV_TEMP30, 
+                             `.variable` == 'b_REGIONleading' ~ 
+                                 `.value` + b_Intercept + b_DEV_TEMP30 + `b_DEV_TEMP30:REGIONleading`), 
+         
+         x31.5 = case_when(`.variable` == 'b_Intercept' ~ 
+                                 `.value` + b_DEV_TEMP31.5, 
+                             `.variable` == 'b_REGIONleading' ~ 
+                                 `.value` + b_Intercept + b_DEV_TEMP31.5 + `b_DEV_TEMP31.5:REGIONleading`))
+  
+int_draws_plotting <- int_draws |> 
+  pivot_longer(cols = starts_with("x"), 
+               names_to = "DEV_TEMP", 
+               values_to = "LENGTH") |> 
+  transmute(LATITUDE = case_when(`.variable` == "b_Intercept" ~ "Low latitude", 
+                                 `.variable` == "b_REGIONleading" ~ "High latitude"), 
+            DEV_TEMP = case_when(DEV_TEMP == 'x28.5' ~ 'DEV_TEMP_28.5', 
+                                 DEV_TEMP == 'x30' ~ 'DEV_TEMP_30', 
+                                 DEV_TEMP == 'x31.5' ~ 'DEV_TEMP_31.5'),
+            LENGTH = LENGTH, 
+            LATITUDE_B = LATITUDE, 
+            DEV_TEMP_B = DEV_TEMP,
+            chain = `.chain`, 
+            iteration = `.iteration`, 
+            draw_n = `.draw`) |> 
+  unite("EXP_GROUP",LATITUDE_B, DEV_TEMP_B,sep="_") |> 
+  mutate(EXP_GROUP = as.factor(EXP_GROUP)) |> 
+  mutate(EXP_GROUP = factor(EXP_GROUP, levels=c("High latitude_DEV_TEMP_28.5","High latitude_DEV_TEMP_30", "High latitude_DEV_TEMP_31.5",
+                                                "Low latitude_DEV_TEMP_28.5","Low latitude_DEV_TEMP_30", "Low latitude_DEV_TEMP_31.5")))
+
+
+int_draws_plotting |> 
+  ggplot(aes(x=EXP_GROUP, y=LENGTH)) + 
+  stat_halfeye(aes(fill = EXP_GROUP, fill_ramp = after_stat(level)), point_interval = mode_hdci, .width = c(.66, .90, .95)) + 
+  scale_fill_brewer(na.translate = FALSE) +
+  scale_fill_manual(values = c("#D1E5F0" ,"#67A9CF", "#2166AC","#FDDBC7","#EF8A62", "#B2182B"))+
+  coord_flip() + theme_classic()
+```
 
 
 
