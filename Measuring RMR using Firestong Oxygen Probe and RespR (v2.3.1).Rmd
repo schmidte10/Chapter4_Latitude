@@ -51,8 +51,7 @@ salinity = 36
 chamber_vol = 0.07165
 system1 = "ASUS" 
 Date1 = "10/06/2023" 
-Tstart = "11:10:11"
-Tend = "18:26:32"
+
 
 ```
 
@@ -71,6 +70,9 @@ firesting <- firesting[-1,]
 
 pre_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 10 June 2023 10 26AM/All slopes" 
 post_bg_dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/ASUS/Experiment_ 10 June 2023 06 30PM/All slopes"
+
+Tstart = "11:10:11"
+Tend = "18:26:32"
 ```
 
 
