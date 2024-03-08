@@ -5,7 +5,7 @@ date: "`r Sys.Date()`"
 output: 
   html_document: 
     toc: true  
-    toc_depth: 6 
+    toc_depth: 2
     toc_float: true
     code_folding: show
     collapse: no
@@ -36,6 +36,8 @@ library(DHARMa) # model validation
 library(ggdist) # partial plots 
 library(tidybayes) # partial plots 
 library(broom.mixed) # model investigation
+library(emmeans) # pairwise comparisons
+library(rstanarm) # pairwise comparisons - need for emmeans
 ```
 
 # Set working directory 
@@ -256,11 +258,7 @@ ggarrange(male.mass.plot, female.mass.plot, male.length.plot, female.length.plot
 ```
 # {-} 
 
-# Statistical analysis {.tabset}
-
-## Length
-
-### Fit model {.tabset}
+# Fit model 
 
 Great lets start to fit our models. There are number of variables within our data frame some of which may or may not be important. To investigate which variables are important and which are not will test different hypotheses that use different combinations of variables that are suited to answer reasonable hypotheses.  
 
@@ -292,7 +290,7 @@ Once these models are run will be investigate their summary statistics to determ
 
 Also because we are doing Bayesian modelling we will be listing priors. Our length data is normally distributed as shown in some of the exploratory data analysis plots. We can confirm this assumption during the model validation stage as well. Out starting priors will be uninformative priors with distribution of gaussian(0,1), this may or may not change as we progress. 
 
-#### Basic model
+## Basic model
 ```{r fit-model-1, cache=TRUE}
 
 model1 <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY + cAGE_DAYS,
@@ -329,9 +327,9 @@ standist::visualize("student_t(3,0,3.8325)", xlim=c(-10,10))
 * The prior on sigma is also a student t with a mean of **0** and a standard deviation of **3.8** 
 
 
-##### MCMC sampling diagnostics {.tabset} 
+### MCMC sampling diagnostics {.tabset} 
 
-###### bayesplot 
+#### bayesplot 
 
 ```{r mcmc-diag-model1-1, fig.height=9}
 mcmc_plot(model1, type='combo')
@@ -342,7 +340,7 @@ mcmc_plot(model1, type='rhat_hist')
 mcmc_plot(model1, type='neff_hist') # one ratio is <0.5 may have to tigthen up the prior for this 
 ```
 
-###### stan plots
+#### stan plots
 ```{r mcmc-diag-model1-2, fig.height=9}
 stan_trace(model1$fit)
 stan_ac(model1$fit) 
@@ -351,15 +349,15 @@ stan_ess(model1$fit)
 stan_dens(model1$fit, separate_chains = TRUE)
 ```
 
-##### {-}  
+### {-}  
 
-##### Summary 
+### Summary 
 
 ```{r summary-1}
 summary(model1)
 ```
 
-#### Maternal effects model 
+## Maternal effects model 
 
 ```{r fit-model-2, cache=TRUE}
 #model.mat.priors <- c(set_prior("normal(0,1)", class = "b", coef="DEV_TEMP30"), 
@@ -401,9 +399,9 @@ standist::visualize("student_t(3,0,3.9)", xlim=c(-10,100))
 * The prior on sigma is also a student t with a mean of **0** and a standard deviation of **3.8** 
 
 
-##### MCMC sampling diagnostics {.tabset} 
+### MCMC sampling diagnostics {.tabset} 
 
-###### bayesplot 
+#### bayesplot 
 
 ```{r mcmc-diag-model2-1, fig.height=9}
 mcmc_plot(model.mat, type='combo')
@@ -414,7 +412,7 @@ mcmc_plot(model.mat, type='rhat_hist')
 mcmc_plot(model.mat, type='neff_hist') # one ratio is <0.5 may have to tigthen up the prior for this 
 ```
 
-###### stan plots
+#### stan plots
 ```{r mcmc-diag-model2-2, fig.height=9}
 stan_trace(model.mat$fit)
 stan_ac(model.mat$fit) 
@@ -423,16 +421,16 @@ stan_ess(model.mat$fit)
 stan_dens(model.mat$fit, separate_chains = TRUE)
 ```
 
-##### {-}
+### {-}
 
-##### Summary 
+### Summary 
 
 ```{r summary-2}
 summary(model.mat)
 ```
 Based on the **model.mat** output **EGG_COUNT** and **HATCHING_SUCCESS** have no credible influence on **cLENGTH** and therefore this model is unlikely to outperform our "basic" model.
 
-#### Geographic model 
+## Geographic model 
 
 ```{r fit-model-3, cache=TRUE}
 #model.geo.priors <- c(set_prior("normal(0,1)", class = "b", coef="DEV_TEMP30"), 
@@ -460,9 +458,9 @@ standist::visualize("student_t(3,0.1,3.8)", xlim=c(-10,100))
 standist::visualize("student_t(3,0,3.8)", xlim=c(-10,100))
 ```
 
-##### MCMC sampling diagnostics {.tabset} 
+### MCMC sampling diagnostics {.tabset} 
 
-###### bayesplot 
+#### bayesplot 
 
 ```{r mcmc-diag-model3-1, fig.height=9}
 mcmc_plot(model.geo, type='combo')
@@ -473,7 +471,7 @@ mcmc_plot(model.geo, type='rhat_hist')
 mcmc_plot(model.geo, type='neff_hist') # one ratio is <0.5 may have to tigthen up the prior for this 
 ```
 
-###### stan plots
+#### stan plots
 ```{r mcmc-diag-model3-2, fig.height=9}
 stan_trace(model.geo$fit)
 stan_ac(model.geo$fit) 
@@ -482,9 +480,9 @@ stan_ess(model.geo$fit)
 stan_dens(model.geo$fit, separate_chains = TRUE)
 ```
 
-##### {-}
+### {-}
 
-##### Summary 
+### Summary 
 
 ```{r summary-3}
 summary(model.geo)
@@ -492,40 +490,37 @@ summary(model.geo)
 
 **FEMALE_LAT** seems to have a credible influence on **cLENGTH**. The next step will be to compare out different models. 
 
-#### {-} 
-
-### {-}
-
-### Model Comparisons {.tabset}
+# Model Comparisons 
 
 All of our models performed relatively well. To determine which model we will use going forward we will compare the three models we ran against each other. Models will be compared via leave-one-out cross-validation, widely applicable information criterion (waic), and bayes factor. 
 
 The **model.mat** model will not be included in the comparison because the additional covariates within the model did not seem to explain a suitable amount of varirance in the model, ALSO, because there were more _'NA's_ in the these added covariates the observation sizes within the models were different meaning the models cannot be compared against each other using standard model comparison tools. 
 
-#### WAIC
+## Comparison methods {.tabset}
+
+### WAIC
 ```{r model-comparisons-1}
 model1.waic <- waic(model1)
 model.geo.waic <- waic(model.geo) 
 loo_compare(model1.waic, model.geo.waic) 
 ```  
 
-#### LOO
+### LOO
 ```{r model-comparisons-2}
 LOO(model1, model.geo) 
 ```
 
-#### Bayes facotr
+### Bayes facotr
 ```{r model-comparisons-3}
 bayes_factor(model1, model.geo)
 ```
-
+## {-}
 All model comparison methods indicate that **model1** outperforms **model.geo**. Therefore we will proceed with **model1** 
 
-### {-}
 
-### Random factors 
+# Random factors 
 
-Before we run the model through the model validation steps we will add in our random factors. Our random factors will include **TANK**, **LEVEL**, and **CLUTCH_NUMBER**. 
+Before we run the model through the model validation steps we will add in our random factors. Our random factors will include **LEVEL**, and **CLUTCH_NUMBER**. 
 
 ```{r random-factors-1, cache=TRUE}
 #model1.priors <- c(set_prior("normal(0,1)", class = "b", coef="DEV_TEMP30"), 
@@ -547,9 +542,9 @@ model1.re <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY 
 summary(model1.re)
 ```
 
-### Model validation {.tabset}
+# Model validation 
 
-#### DHARMa residuals 
+## DHARMa residuals 
 ```{r model-validation-2}
 pp_check(model1.re, type = 'dens_overlay')
 
@@ -565,15 +560,8 @@ plot(model1.re.resids)
 
 It looks like there are some issues with the model. Mainly around the presence of outliers. Some of these outliers could be seen in our explanatory data analysis. Let's revisit our raw data to check and remove the presence of outliers. 
 
-### {-} 
+# Removal of outliers
 
-### Removal of outliers
-
-Let's first look at our data exploration plots again to see what the data looks like. 
-
-```{r outlier-removal-1, warning=FALSE, message=FALSE, echo=FALSE, fig.height=9, fig.width=9}
-eda1
-```
 There seems to be three areas that standout as potentially possessing outliers: 
 
 1. The single individual that is >4 grams. This individual is more than double the size of the average individual. 
@@ -613,7 +601,7 @@ p1.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS)) +
   geom_smooth(methos="lm", se=TRUE, fill=NA,
               formula = y~poly(x, 3, raw=TRUE), color = "red") + 
   ggtitle("All points") +
-  theme_classic(); p1.wo
+  theme_classic()
 
 p2.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=REGION)) + 
   geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
@@ -660,9 +648,13 @@ eda2 <- ggarrange(p1.wo,p2.wo,p3.wo,p4.wo,p5.wo,
           nrow=3); eda2
 ```
 
-### Refit model 
+# Refit model 
 
 ```{r model-refit-1, cache=TRUE}
+#---option to load model ---#
+
+# model1.re.wo <- readRDS(file = "./bayesian_models/model1.re.wo.rds")
+
 #--- run model ---#
 model1.re.wo <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSITY + cAGE_DAYS + (1|LEVEL) + (1|FEMALE),
               family=gaussian(),
@@ -675,6 +667,9 @@ model1.re.wo <- brm(cLENGTH ~ DEV_TEMP*REGION + cFEMALE_STANDARD_LENGTH + cDENSI
               chains = 4, 
               thin = 5, 
               control = list(adapt_delta=0.9)) 
+
+#---option to save model ---#
+# saveRDS(model1.re.wo, file = "./bayesian_models/model1.re.wo.rds")
 
 #--- distribution check ---#
 pp_check(model1.re.wo, type = 'dens_overlay')
@@ -693,36 +688,36 @@ I'm hesitant to remove further outliers. The mass of samples that sit above the 
 
 In the case with large datasets visual checks provide additional insight to statistical tests, and in this case out visual analysis seems to point in the direction of our model being appropriate. 
 
-### Partial effects plots 
+# Partial effects plots 
 
-#### conditional_effects 
+## conditional_effects 
 
 ```{r partial-plots-cond-eff-1}
 model1.re.wo |> 
   conditional_effects(spaghetti = TRUE, ndraws=200) 
 ``` 
 
-### Model investigation {.tabset}
+# Model investigation {.tabset}
 
-#### summary 
+## summary 
 
 ```{r summary-100}
 summary(model1.re.wo)
 ```
 
-#### R2 
+## R2 
 
 ```{r r-squared}
 model1.re.wo |> bayes_R2(summary = FALSE) |> median_hdci()
 ```
 
-#### tidyMCMC 
+## tidyMCMC 
 
 ```{r tidy}
 tidyMCMC(model1.re.wo, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
 ```
 
-#### gather draws 
+## gather draws 
 
 ```{r gather_draws}
 #model1.re.wo |> get_variables()
@@ -730,21 +725,34 @@ model1.re.wo |> gather_draws(`b_.*|sigma`, regex =TRUE) |>
   median_hdci()
 ``` 
 
-#### bayesplot 
+## bayesplot 
 
 ```{r bayesplot-1}
 model1.re.wo |> mcmc_plot(type='intervals')
 ```
 
-### {-}
+## emmeans - pariwise 
 
-### summary figure {.tabset}
+```{r emmeans-pairwise}
+model1.re.wo |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
+```
 
-#### Manual
+## probabilities 
+```{r probabilities}
+model1.re.wo |> emmeans(~ REGION | DEV_TEMP, at = list(DEV_TEMP = 31.5, length.out = 10)) |> pairs(type = 'response')
+
+```
+# {-}
+
+ 
+
+
+
+# summary figure 
 
 ```{r summary-figure-1}
 var <- get_variables(model1.re.wo); var
-var1 <- get_variables(model1.re.wo)[c(1:3,8:9)] ; var1 
+var1 <- get_variables(model1.re.wo)[c(1:4,8:9)] ; var1 
 
 int_draws_spread <- model1.re.wo |> spread_draws(!!!syms(var1)) 
 
@@ -790,13 +798,37 @@ int_draws_plotting <- int_draws |>
                                                 "Low latitude_DEV_TEMP_28.5","Low latitude_DEV_TEMP_30", "Low latitude_DEV_TEMP_31.5")))
 
 
-int_draws_plotting |> 
+length.plot <- int_draws_plotting |> 
   ggplot(aes(x=EXP_GROUP, y=LENGTH)) + 
-  stat_halfeye(aes(fill = EXP_GROUP, fill_ramp = after_stat(level)), point_interval = mode_hdci, .width = c(.66, .90, .95)) + 
-  scale_fill_brewer(na.translate = FALSE) +
-  scale_fill_manual(values = c("#D1E5F0" ,"#67A9CF", "#2166AC","#FDDBC7","#EF8A62", "#B2182B"))+
-  coord_flip() + theme_classic()
+  geom_hline(yintercept = 0, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
+  stat_halfeye(aes(fill = EXP_GROUP, fill_ramp = after_stat(level)), 
+               point_interval = mode_hdci, 
+               .width = c(.66, .90, .95)) + 
+  scale_fill_ramp_discrete(na.translate=FALSE, 
+                           labels =c("0.95","0.90","0.66"), 
+                           name = "Credible interval") +
+  scale_fill_manual(values = c("lightskyblue" ,"dodgerblue2", "dodgerblue4","coral", "red2","firebrick4"))+ 
+  scale_y_continuous(limits=c(-6,6), breaks = seq(-6,6, 1))+
+  ylab("CENTERED LENGTH (mm)") + xlab("EXPERIMENTAL GROUP") +
+  scale_x_discrete(labels = c("Low latitude_DEV_TEMP_28.5" = paste0("Low latitude 28.5","\u00B0","C"), 
+                              "Low latitude_DEV_TEMP_30" = paste0("Low latitude 30","\u00B0","C"),
+                              "Low latitude_DEV_TEMP_31.5" = paste0("Low latitude 31.5","\u00B0","C"), 
+                              "High latitude_DEV_TEMP_28.5" = paste0("High latitude 28.5","\u00B0","C"),
+                              "High latitude_DEV_TEMP_30" = paste0("High latitude 30","\u00B0","C"),
+                              "High latitude_DEV_TEMP_31.5" = paste0("High latitude 31.5","\u00B0","C"))) +
+  annotate("text", x=6.8,y=1.4, label = paste0(round(mean(growth3$LENGTH), 2)," (mm)"), color="grey58") +
+  coord_flip() + 
+  theme_classic() + 
+  guides(fill = "none") + 
+  theme(legend.position = c(.88,.86), 
+        axis.title.y = element_text(margin = margin(r =0.3, unit = "in"), size = 12), 
+        axis.title.x = element_text(margin = margin(t = 0.3, unit="in"), size =12), 
+        legend.key = element_rect(color="black", size=1.25)); length.plot
 ```
 
+```{r eval=FALSE, echo=TRUE}
+ggsave(file="./figures/length.plot.svg",  plot=length.plot, width=8, height=5, units = "in", dpi=300) 
+ggsave(file="./figures/length.plot.pdf",  plot=length.plot, width=8, height=5, units = "in", dpi=300)
+```
 
 
