@@ -83,11 +83,11 @@ server <- function(input, output) {
         input$dev.temp
         input$population
       isolate({ 
-        ggplot(data =lat_resp_dat, aes(x=(time_lag_min/60), y=rate.output)) + 
+        ggplot(data =lat_resp_dat, aes(x=(time_lag_min/60), y=rate.output2)) + 
           geom_point(color="grey72", alpha=0.4) +  
-          geom_point(data = FinderInd(), mapping = aes(x=(time_lag_min/60), y=rate.output, color=time_lag_min/60),
+          geom_point(data = FinderInd(), mapping = aes(x=(time_lag_min/60), y=rate.output2, color=time_lag_min/60),
                     size=2.1) +
-          geom_point(data = FinderTemp(), mapping = aes(x=(time_lag_min/60), y=rate.output, color=dev.temp), 
+          geom_point(data = FinderTemp(), mapping = aes(x=(time_lag_min/60), y=rate.output2, color=dev.temp), 
                      size=2.1) +
           theme_bw() + 
           theme(legend.position = "right")
