@@ -337,10 +337,10 @@ mcmc_plot(model1, type='trace')
 mcmc_plot(model1, type='dens_overlay') 
 mcmc_plot(model1, type='acf_bar')
 mcmc_plot(model1, type='rhat_hist')
-mcmc_plot(model1, type='neff_hist') # one ratio is <0.5 may have to tigthen up the prior for this 
+mcmc_plot(model1, type='neff_hist') 
 ```
-
 #### stan plots
+
 ```{r mcmc-diag-model1-2, fig.height=9}
 stan_trace(model1$fit)
 stan_ac(model1$fit) 
@@ -520,7 +520,7 @@ All model comparison methods indicate that **model1** outperforms **model.geo**.
 
 # Random factors 
 
-Before we run the model through the model validation steps we will add in our random factors. Our random factors will include **LEVEL**, and **CLUTCH_NUMBER**. 
+Before we run the model through the model validation steps we will add in our random factors. Our random factors will include **LEVEL**, and **FEMALE**. 
 
 ```{r random-factors-1, cache=TRUE}
 #model1.priors <- c(set_prior("normal(0,1)", class = "b", coef="DEV_TEMP30"), 
