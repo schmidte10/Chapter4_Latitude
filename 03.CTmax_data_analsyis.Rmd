@@ -1,0 +1,66 @@
+---
+title: "03.CTmax_analysis"
+author: "Elliott Schmidt"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    toc: true  
+    toc_depth: 2
+    toc_float: true
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 6
+    highlight: monochrome
+    theme: cerulean
+    latex_engine: xelatex
+---
+
+# Scenario 
+
+Within this chapter developmental plasticity was explored within _Acanthochromis polyacanthus_ that were collected from two different regions (i.e., low-latitude, Cairns, and high-latitude, Mackay). Fish were held in common garden experiments at 28.5 C. Clutch data was collected along with parental morphometeric data to determine how fish from each population performed at 28.5 C, a temperature that was shown to produce similar absoluate aerobic scope performances in a previous study [link]. Once hatched offspring were placed into three different temperature treatments, 28.5, 30, and 31.5 C. After approximately 5-6 months offspring length and weight was measured, as well as CTmax and respiration during CTmax trials. 
+
+# Load packages 
+
+```{r load-packages-1, warning=FALSE, message=FALSE}
+library(tidyverse) # data manipulation
+library(ggpubr) # figure arrangement 
+library(brms) # Bayesian models
+library(StanHeaders)# needed to run Bayesian models
+library(rstan) # needed to run Bayesian models
+library(standist) # needs to be installed 
+library(bayesplot) # needed for MCMC diagnostics 
+library(DHARMa) # model validation 
+library(ggdist) # partial plots 
+library(tidybayes) # partial plots 
+library(broom.mixed) # model investigation
+library(emmeans) # pairwise comparisons
+library(rstanarm) # pairwise comparisons - need for emmeans
+```
+
+# Set working directory 
+
+```{r setwd-1, echo=FALSE}
+knitr::opts_knit$set(root.dir="C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude")
+``` 
+
+```{r setwd-2, echo=TRUE, eval=FALSE}
+knitr::opts_knit$set(root.dir=working.dir)
+```
+
+# Import data 
+
+```{r import-data-1, message=FALSE}
+growth <- read_delim("import_files/growth_data.txt", 
+    delim = "\t", escape_double = FALSE, 
+    col_types = cols(NOTES = col_skip(), 
+        ...16 = col_skip(), ...17 = col_skip()), 
+    trim_ws = TRUE) 
+
+clutch_data <- read_delim("import_files/clutch_data_2022_2023.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE) %>% 
+  mutate(CLUTCH_NUMBER = as.factor(CLUTCH_NUMBER))
+```

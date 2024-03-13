@@ -190,14 +190,14 @@ eda1 <- ggarrange(p1,p2,p3,p4,p5,
 
 ```{r eda-2, warning=FALSE, message=FALSE, fig.width=8, echo=FALSE}
 plot.length.raw <- ggplot(growth2, aes(y=LENGTH, x=EXP_GROUP, fill=EXP_GROUP)) + 
-  geom_boxplot() + 
+  geom_boxplot(outlier.shape = NA) + 
   theme_classic() + 
   theme(axis.text.x = element_text(angle=45, vjust=0.9, hjust=1)) + 
   scale_fill_manual(values = c("salmon","firebrick1","firebrick4","skyblue","steelblue3","royalblue4")) + 
   ggtitle("LENGTH")
 
 plot.mass.raw <- ggplot(growth2, aes(y=MASS, x=EXP_GROUP, fill=EXP_GROUP)) + 
-  geom_boxplot() + 
+  geom_boxplot(outlier.shape = NA) + 
   theme_classic() + 
   theme(axis.text.x = element_text(angle=45, vjust=0.9, hjust=1)) + 
   ylim(0,3) +
@@ -205,7 +205,7 @@ plot.mass.raw <- ggplot(growth2, aes(y=MASS, x=EXP_GROUP, fill=EXP_GROUP)) +
   ggtitle("MASS") 
 
 plot.k.raw <- ggplot(growth2, aes(y=FULTONK, x=EXP_GROUP, fill=EXP_GROUP)) + 
-  geom_boxplot() + 
+  geom_boxplot(outlier.shape = NA) + 
   theme_classic() + 
   theme(axis.text.x = element_text(angle=45, vjust=0.9, hjust=1)) + 
   ylim(0.02,0.05) +
@@ -470,6 +470,7 @@ stan_dens(model.geo$fit, separate_chains = TRUE)
 ```{r summary-3}
 summary(model.geo)
 ``` 
+
 In the geographic model **cFEMALE_MASS**, and **cAGE** have no credible influence while.
 
 
@@ -479,7 +480,7 @@ All of our models performed relatively well. To determine which model we will us
 
 The **model.mat** model will not be included in the comparison because the additional covariates within the model did not seem to explain a suitable amount of varirance in the model, ALSO, because there were more _'NA's_ in the these added covariates the observation sizes within the models were different meaning the models cannot be compared against each other using standard model comparison tools. 
 
-## Comparison methods {.tabset}
+## Comparison methods 
 
 ### WAIC
 ```{r model-comparisons-1}
@@ -498,7 +499,6 @@ LOO(model1, model.geo)
 ```{r model-comparisons-3}
 bayes_factor(model1, model.geo)
 ```
-## {-}
 
 # Model fit
 Model comparisons indicate that **model1** outperforms **model.geo**. From examining our models we find that **cFEMALE_MASS** and **cAGE** did not have a strong influence on any of the models, and therefore they will not be included in the final model. However, in the maternal model **HATCHING_SUCCESS** was found to have an influence on **cMASS** so we will add this factor into our final model. 
@@ -525,7 +525,7 @@ There seems to be some small issues. Lets investigate the model to find out more
 
 ## Model validation
 
-```{r model-invest-1}
+```{r model1.mass}
 #--- distribution check ---#
 pp_check(model1.mass, type = 'dens_overlay')
 
@@ -535,15 +535,15 @@ growth3 <- growth2 |>
 preds <- posterior_predict(model1.mass, ndraws=250, summary=FALSE)
 model1.mass.resids <- createDHARMa(simulatedResponse = t(preds), 
                               observedResponse = na.omit(growth3$cMASS), 
-                              fittedPredictedResponse = apply(preds, 2, median), 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
                               integerResponse = 'student')
 plot(model1.mass.resids) ; testDispersion(model1.mass.resids)
 ```
 
-# Model re-fit
+# Log-link model
 There are a couple issues with the way the residuals are distributed. Lets try to add a log-link into the model and see if that helps. 
 
-```{r random-factors-2, cache=TRUE}
+```{r random-factors-2, cache=TRUE, eval=FALSE, echo=FALSE}
 model1.mass.log <- brm(cMASS ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
               family=gaussian(link="log"),
               data = growth2, 
@@ -558,10 +558,9 @@ model1.mass.log <- brm(cMASS ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + c
 summary(model1.mass.log)
 ```
 
-## Model validation
 Lets see if the model has improved 
 
-```{r model-invest-2}
+```{r model1.mass.log, eval=FALSE, echo=FALSE}
 #--- distribution check ---#
 pp_check(model1.mass.log, type = 'dens_overlay')
 
@@ -576,11 +575,12 @@ model1.mass.log.resids <- createDHARMa(simulatedResponse = t(preds),
 plot(model1.mass.log.resids) ; testDispersion(model1.mass.log.resids)
 ```
 
-Not really, in fact the log link perhaps makes it worse! Maybe we can try a square-root link, as the square root transformation helps if most values are rather small. 
+Not really, in fact the log link perhaps makes it worse! Maybe we can try a student's t distribution which has fatter tails and may deal with residuals a bit better. 
 
+# Student Model
 ```{r random-factors-3, cache=TRUE, eval=FALSE, echo=FALSE}
-model1.mass.sqrt <- brm(cMASS ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
-              family=gaussian(link="sqrt"),
+model1.mass.st <- brm(cMASS ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
+              family=student,
               data = growth2, 
               warmup = 4000, 
               iter = 10000,
@@ -590,34 +590,192 @@ model1.mass.sqrt <- brm(cMASS ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + 
               chains = 4, 
               thin = 5, 
               control = list(adapt_delta=0.9))  
-summary(model1.mass)
+summary(model1.mass.st)
 ```
 
 Lets see if the model has improved 
 
-```{r model-invest-3, eval=FALSE, echo=FALSE}
+```{r model1.mass.student, eval=FALSE, echo=FALSE}
 #--- distribution check ---#
-pp_check(model1.mass.log, type = 'dens_overlay')
+pp_check(model1.mass.st, type = 'dens_overlay')
 
 #--- DHARMa checks ---#
 growth3 <- growth2 |> 
   drop_na(HATCHING_SUCCESS)
-preds <- posterior_predict(model1.mass.log, ndraws=250, summary=FALSE)
-model1.mass.log.resids <- createDHARMa(simulatedResponse = t(preds), 
+preds <- posterior_predict(model1.mass.st, ndraws=250, summary=FALSE)
+model1.mass.st.resids <- createDHARMa(simulatedResponse = t(preds), 
                               observedResponse = na.omit(growth3$cMASS), 
                               fittedPredictedResponse = apply(preds, 2, median), 
                               integerResponse = 'student')
-plot(model1.mass.log.resids) ; testDispersion(model1.mass.log.resids)
+plot(model1.mass.st.resids) ; testDispersion(model1.mass.st.resids)
 ```
 
+The student t distribution doesn't change the results. In all the models the observed values seem to lower than expected, and the values at the lower end seem to have issues with their residuals. There may be an issue with how the data is being modelled. So here is what I will try moving forward: 
 
-# Partial effects plots 
+1. Center MASS on median value instead of Mean 
+2. scale numeric co-variates including cLength, hatching success, and density. 
 
-## conditional_effects 
+# Median-centered model
+Lets start with the first option 
 
-```{r partial-plots-cond-eff-1}
-model1.mass |> 
-  conditional_effects(spaghetti = TRUE, ndraws=200) 
+```{r re-fit-model-3, eval=FALSE, echo=FALSE}
+growth4 <- growth2 |> 
+  mutate(mdMASS = scale(MASS, center = median(MASS), scale=FALSE)[,1])
+
+``` 
+
+Let's try out gaussian model to see if this improves the outcome 
+
+```{r re-fit-model-5, eval=FALSE, echo=FALSE}
+model1.mdMASS <- brm(mdMASS ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
+              family=gaussian,
+              data = growth4, 
+              warmup = 4000, 
+              iter = 10000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              chains = 4, 
+              thin = 5, 
+              control = list(adapt_delta=0.9))  
+
+```
+
+```{r model.mdMASS, eval=FALSE, echo=FALSE}
+#--- distribution check ---#
+pp_check(model1.mdMASS, type = 'dens_overlay')
+
+#--- DHARMa checks ---#
+growth5 <- growth4 |> 
+  drop_na(HATCHING_SUCCESS)
+preds <- posterior_predict(model1.mdMASS, ndraws=250, summary=FALSE)
+model1.mdMASS.resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = na.omit(growth5$mdMASS), 
+                              fittedPredictedResponse = apply(preds, 2, median), 
+                              integerResponse = 'student')
+plot(model1.mdMASS.resids) ; testDispersion(model1.mdMASS.resids)
+```
+
+Doesn't seem to help 
+
+# scaled model
+```{r model1.scaled, eval=FALSE, echo=FALSE}
+
+growth4 <- growth4 |> 
+  mutate(HATCHING_SUCCESS = scale(HATCHING_SUCCESS, center=TRUE, scale = TRUE), 
+         cDENSITY = scale(cDENSITY, center=FALSE, scale=TRUE), 
+         cLength = scale(cLENGTH, center=FALSE, scale=TRUE))
+model1.scaled <- brm(cMASS ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
+              family=gaussian,
+              data = growth4, 
+              warmup = 4000, 
+              iter = 10000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              chains = 4, 
+              thin = 5, 
+              control = list(adapt_delta=0.9))  
+
+
+pp_check(model1.scaled, type = 'dens_overlay')
+
+#--- DHARMa checks ---#
+growth5 <- growth4 |> 
+  drop_na(HATCHING_SUCCESS)
+preds <- posterior_predict(model1.scaled, ndraws=250, summary=FALSE)
+model1.scaled.resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = na.omit(growth5$mdMASS), 
+                              fittedPredictedResponse = apply(preds, 2, median), 
+                              integerResponse = 'student')
+plot(model1.scaled.resids) ; testDispersion(model1.scaled.resids)
+```
+
+This makes the model worse. Out of ideas for now. 
+
+# log-transformed model
+```{r model1.tlog, eval=FALSE, echo=FALSE}
+model1.tlog <- brm(log(cMASS) ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
+              family=gaussian,
+              data = growth2, 
+              warmup = 4000, 
+              iter = 10000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              chains = 4, 
+              thin = 5, 
+              control = list(adapt_delta=0.9)) 
+
+pp_check(model1.tlog, type = 'dens_overlay')
+
+#--- DHARMa checks ---#
+growth3 <- growth2 |> 
+  drop_na(HATCHING_SUCCESS)
+preds <- posterior_predict(model1.tlog, ndraws=250, summary=FALSE)
+model1.tlog.resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = na.omit(log(growth3$cMASS)), 
+                              fittedPredictedResponse = apply(preds, 2, median), 
+                              integerResponse = 'student')
+plot(model1.tlog.resids) ; testDispersion(model1.tlog.resids)
+``` 
+
+# Square-root transformed model 
+```{r model1.tsqrt, eval=FALSE, echo=FALSE}
+model1.tsqrt <- brm(sqrt(cMASS) ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
+              family=gaussian(),
+              data = growth2, 
+              warmup = 4000, 
+              iter = 10000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              chains = 4, 
+              thin = 5, 
+              control = list(adapt_delta=0.9)) 
+
+summary(model1.tsqrt)
+pp_check(model1.tsqrt, type = 'dens_overlay')
+
+#--- DHARMa checks ---#
+growth3 <- growth2 |> 
+  drop_na(HATCHING_SUCCESS)
+preds <- posterior_predict(model1.tsqrt, ndraws=250, summary=FALSE)
+model1.tsqrt.resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = na.omit(sqrt(growth3$cMASS)), 
+                              fittedPredictedResponse = apply(preds, 2, median), 
+                              integerResponse = 'student')
+plot(model1.tsqrt.resids) ; testDispersion(model1.tsqrt.resids)
+``` 
+
+The square root transformation seems to help with the lower end residuals. There are still some issues with the data but it is looking much better. We may try some slight adjustments but over all it looks pretty good. 
+
+# Square-root transformed model with student distribution
+```{r model1.tsqrt.student, cache=TRUE}
+model1.tsqrt.student <- brm(sqrt(cMASS) ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
+              family=student(),
+              data = growth2, 
+              warmup = 4000, 
+              iter = 10000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              chains = 4, 
+              thin = 5, 
+              control = list(adapt_delta=0.99)) 
+
+summary(model1.tsqrt.student )
+pp_check(model1.tsqrt.student , type = 'dens_overlay')
+
+#--- DHARMa checks ---#
+growth3 <- growth2 |> 
+  drop_na(HATCHING_SUCCESS)
+preds <- posterior_predict(model1.tsqrt.student , ndraws=250, summary=FALSE)
+model1.tsqrt.student.resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = na.omit(sqrt(growth3$cMASS)), 
+                              fittedPredictedResponse = apply(preds, 2, median), 
+                              integerResponse = 'student')
+plot(model1.tsqrt.student.resids) ; testDispersion(model1.tsqrt.student.resids)
 ``` 
 
 # Model investigation {.tabset}
@@ -625,55 +783,64 @@ model1.mass |>
 ## summary 
 
 ```{r summary-100}
-summary(model1.mass)
+summary(model1.tsqrt.student)
 ```
 
 ## R2 
 
 ```{r r-squared}
-model1.mass |> bayes_R2(summary = FALSE) |> median_hdci()
+model1.tsqrt.student |> bayes_R2(summary = FALSE) |> median_hdci()
 ```
 
 ## tidyMCMC 
 
 ```{r tidy}
-tidyMCMC(model1.mass, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+tidyMCMC(model1.tsqrt.student, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
 ```
 
 ## gather draws 
 
 ```{r gather_draws}
 #model1.re.wo |> get_variables()
-model1.mass |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+model1.tsqrt.student |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
   median_hdci()
 ``` 
 
 ## bayesplot 
 
 ```{r bayesplot-1}
-model1.mass |> mcmc_plot(type='intervals')
+model1.tsqrt.student |> mcmc_plot(type='intervals')
 ```
 
 ## emmeans - pariwise 
 
 ```{r emmeans-pairwise}
-model1.mass |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
+model1.tsqrt.student |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
 ```
 
 ## probabilities 
 ```{r probabilities}
-model1.mass |> emmeans(~ REGION | DEV_TEMP, at = list(DEV_TEMP = 31.5, length.out = 10)) |> pairs(type = 'response')
-
+#model1.tsqrt.student |> emmeans(~ REGION | DEV_TEMP, at = list(DEV_TEMP = 31.5, length.out = 10)) |> pairs(type = 'response')
+mtsqst <- model1.tsqrt.student |> emmeans(pairwise ~ REGION*DEV_TEMP)
+mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
+mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 ```
+
 # {-}
 
 # summary figure 
 
-```{r summary-figure-1}
-var <- get_variables(model1.mass); var
-var1 <- get_variables(model1.mass)[c(1:4,8:9)] ; var1 
+```{r summary-figure-1, warning=FALSE, message=FALSE}
+var <- get_variables(model1.tsqrt.student)
+var1 <- get_variables(model1.tsqrt.student)[c(1:4,8:9)] ; var1 
 
-int_draws_spread <- model1.mass |> spread_draws(!!!syms(var1)) 
+int_draws_spread <- model1.tsqrt.student |> spread_draws(!!!syms(var1)) #|> 
+  #mutate(b_Intercept = b_Intercept^2, 
+        # b_DEV_TEMP30 = b_DEV_TEMP30^2, 
+        # b_DEV_TEMP31.5 = b_DEV_TEMP31.5^2, 
+        # b_REGIONleading = b_REGIONleading^2, 
+         #`b_DEV_TEMP30:REGIONleading` = `b_DEV_TEMP30:REGIONleading`^2, 
+         #`b_DEV_TEMP31.5:REGIONleading` = `b_DEV_TEMP31.5:REGIONleading`^2)
 
 int_draws_spread2 <- int_draws_spread |> 
   gather_draws(b_Intercept, b_REGIONleading) |> 
@@ -739,7 +906,7 @@ mass.plot <- int_draws_plotting |>
   coord_flip() + 
   theme_classic() + 
   guides(fill = "none") + 
-  theme(legend.position = c(.88,.86), 
+  theme(legend.position = c(.28,.86), 
         axis.title.y = element_text(margin = margin(r =0.3, unit = "in"), size = 12), 
         axis.title.x = element_text(margin = margin(t = 0.3, unit="in"), size =12), 
         legend.key = element_rect(color="black", size=1.25)); mass.plot
