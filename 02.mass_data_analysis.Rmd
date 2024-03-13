@@ -54,7 +54,7 @@ knitr::opts_knit$set(root.dir=working.dir)
 # Import data 
 
 ```{r import-data-1, message=FALSE}
-growth <- read_delim("import_files/growth_data.txt", 
+growth <- read_delim("../import_files/growth_data.txt", 
     delim = "\t", escape_double = FALSE, 
     col_types = cols(NOTES = col_skip(), 
         ...16 = col_skip(), ...17 = col_skip()), 

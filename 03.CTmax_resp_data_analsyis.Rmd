@@ -52,15 +52,27 @@ knitr::opts_knit$set(root.dir=working.dir)
 
 # Import data 
 
-```{r import-data-1, message=FALSE}
-growth <- read_delim("import_files/growth_data.txt", 
-    delim = "\t", escape_double = FALSE, 
-    col_types = cols(NOTES = col_skip(), 
-        ...16 = col_skip(), ...17 = col_skip()), 
-    trim_ws = TRUE) 
+This data set has no point outliers however, in the next chunk 3 samples will be 
+discarded due to poor data quailty 
 
-clutch_data <- read_delim("import_files/clutch_data_2022_2023.txt", 
+```{r import-data-1, message=FALSE}
+lat_resp_dat <- read_delim("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude/import_files/lat_resp_dat_no_outliers.txt", 
     delim = "\t", escape_double = FALSE, 
-    trim_ws = TRUE) %>% 
-  mutate(CLUTCH_NUMBER = as.factor(CLUTCH_NUMBER))
+    col_types = cols(area = col_skip(), rate.a.spec = col_skip()), 
+    trim_ws = TRUE)
+```
+
+# Data manipulation 
+
+```{r }
+rows_of_data <- count(lat_resp_dat, sampleID)
+lat_resp_dat2 <- lat_resp_dat |> 
+  mutate(dev.temp = as.factor(dev.temp), 
+         replicate = str_sub(sampleID, -1,-1), 
+         population = factor(population)) |>
+                                           # number of observations = 5758
+  filter(sampleID != "56.CARL.137.28,5.1", # 5777 - 76 = 5682
+         sampleID != "56.CARL.137.28,5.2", # 5701 - 64 = 5618
+         sampleID != "60.LCKM.152.30.1"  # 5637 - 76 = 5542
+  )
 ```
