@@ -12,9 +12,33 @@ library(tidyverse)
 library(shiny)
 library(shinythemes)
 #--- import data ---# 
+
+#--- not filtered ---#
 load("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude/import_files/lat_resp_dat.Rda") 
 
-lat_resp_dat <-  lat_resp_dat |> 
+#--- filtered ---#
+lat_resp_dat2 <- lat_resp_dat |> 
+  mutate(dev.temp = as.factor(dev.temp), 
+         replicate = str_sub(sampleID, -1,-1), 
+         population = factor(population)) |>
+  # number of observations = 5758
+  filter(sampleID != "56.CARL.137.28,5.1", # 5777 - 76 = 5682
+         sampleID != "56.CARL.137.28,5.2", # 5701 - 64 = 5618
+         sampleID != "60.LCKM.152.30.1"  # 5637 - 76 = 5542
+  ) |> 
+  filter(time_lag_sec >2001) |> # remove samples from first 5 cycles (i.e., first 33 minutes) 
+  group_by(sampleID) |> 
+  mutate(max_value_index = which.max(rate.output), 
+         row_number = row_number()) |>
+  filter(row_number <= max_value_index) |>
+  ungroup()
+
+#--- NOTE ---# 
+
+# lat_resp_data is NOT filtered via quailty checks 
+# lat_resp_data2 IS filtered via quailty checks
+
+lat_resp_dat <-  lat_resp_dat2 |> 
   mutate(dev.temp = as.factor(dev.temp), 
          replicate = str_sub(sampleID, -1,-1), 
          population = factor(population))  
