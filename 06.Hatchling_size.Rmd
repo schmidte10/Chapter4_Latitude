@@ -160,7 +160,9 @@ stan_dens(model1.hmass$fit, separate_chains = TRUE)
 
 This model runs poorly. It may run better in the future when random variables are included. 
 
-```{r fit-model-4, cache=TRUE}
+## Temporal model
+
+```{r fit-model-5, cache=TRUE}
 model2.hmass <- brm(cMASS ~ REGION + cMALE_MASS + HATCHLINGS + CLUTCH_ORDER + DAYS_IN_TREATMENT, 
               family=gaussian(),
               data = hmass2, 
@@ -175,7 +177,7 @@ model2.hmass <- brm(cMASS ~ REGION + cMALE_MASS + HATCHLINGS + CLUTCH_ORDER + DA
               control = list(adapt_delta=0.99))
 ```
 
-```{r fit-model-5, fig.height=9}
+```{r fit-model-6, fig.height=9}
 stan_trace(model2.hmass$fit)
 stan_ac(model2.hmass$fit) 
 stan_rhat(model2.hmass$fit) 
