@@ -85,8 +85,15 @@ lat_resp_dat2 <- lat_resp_dat |>
          net.rate = max.rate - low.rate) |> 
   filter(row_number <= max_value_index) |>
   ungroup() |> 
-  mutate(cMASS = scale(mass, center=TRUE, scale=FALSE), 
-         cAge = scale(age, center=TRUE, scale=FALSE))
+  mutate(cMASS = scale(mass, center=TRUE, scale=FALSE)[,1], 
+         cAge = scale(age, center=TRUE, scale=FALSE)[,1], 
+         region = factor(region), 
+         dev.temp =factor(dev.temp), 
+         LEVEL = as.factor(case_when(tank >= 1 & tank <= 199 ~ 1,
+                           tank >= 200 & tank <= 299 ~ 2,
+                           tank >= 300 & tank <= 399 ~ 3,
+                           TRUE ~ NA_real_)), 
+         female = factor(female))
 ```
 
 ```{r data-manipulation-2, eval=TRUE, echo=FALSE}
@@ -97,7 +104,7 @@ CTmax.values <- lat_resp_dat2 |>
 
 # Exploratory data analysis 
 
-```{r eda-1, warning=FALSE, message=FALSe, fig.height=24, fig.width=8}
+```{r eda-1, warning=FALSE, message=FALSE, fig.height=24, fig.width=8}
 
 eda1 <- ggplot(lat_resp_dat2, aes(x=Temperature, y=rate.output)) + 
   geom_point(alpha=0.5, color = "black") + 
@@ -158,9 +165,9 @@ eda6 <- ggplot(lat_resp_dat2, aes(x=Temperature, y=rate.output, color=dev.temp))
   theme(legend.position = "none") +
   ggtitle("Population - 2nd order polynomial")
 
-eda.fig <- ggarrange(eda1, eda2,eda3,eda4,eda5,eda6,
+eda.fig <- ggarrange(eda1,eda2,eda3,eda4,eda5,eda6,
           nrow = 6, 
-          col=1); eda.fig
+          ncol=1); eda.fig
 ```
 
 # Model fit {.tabset}
@@ -179,7 +186,7 @@ rate.output2 ~ region*dev.temp*poly(Temperature, 2) + cMASS
 
 2. The second hypothesis will be similar to the base model but will include covariates that are associated with the systems that fish were tested on. Covariates will include **chamber** and **system**. By exploring this model we can make sure that the position that chambers were placed in the tanks did not influence oxygen consumption and that the two seems used, labelled DELL and ASUS from the computers that were used to collect data, produced comparable data. 
 
-```{r model1-definition, eval=FALSE, echo=TRUE}
+```{r model.equip-definition, eval=FALSE, echo=TRUE}
 rate.output2 ~ region*dev.temp*poly(Temperature, 2) + cMASS + chamber + system
 ``` 
 
@@ -198,4 +205,215 @@ model1 <- brm(rate.output2 ~ region*dev.temp*poly(Temperature, 2) + cMASS,
               thin = 5, 
               control = list(adapt_delta=0.95)) 
 
+``` 
+
+### Model 1- sampling diagnositics {.tabset}
+
+#### bayesplot 
+
+```{r mcmc-diag-model1, fig.height=9}
+mcmc_plot(model1, type='combo')
+mcmc_plot(model1, type='trace') 
+mcmc_plot(model1, type='dens_overlay') 
+mcmc_plot(model1, type='acf_bar')
+mcmc_plot(model1, type='rhat_hist')
+mcmc_plot(model1, type='neff_hist') 
 ```
+
+#### stan plots 
+
+```{r stan-diag-model1, fig.height=9}
+stan_trace(model1$fit)
+stan_ac(model1$fit) 
+stan_rhat(model1$fit) 
+stan_ess(model1$fit)
+stan_dens(model1$fit, separate_chains = TRUE)
+```
+
+### {-}
+
+## Equipment model 
+
+```{r equip-model1, cahce=TRUE}
+model.equip <- brm(rate.output2 ~ region*dev.temp*poly(Temperature, 2) + cMASS + system + chamber, 
+                   family=gaussian(), 
+              data=lat_resp_dat2, 
+              warmup = 4000, 
+              iter=10000, 
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE), 
+              chains=4, 
+              thin = 5, 
+              control = list(adapt_delta=0.95))
+```
+
+
+### Equipment model - sampling diagnositics {.tabset}
+
+#### bayesplot 
+
+```{r mcmc-diag-model-equip, fig.height=9}
+mcmc_plot(model.equip, type='combo')
+mcmc_plot(model.equip, type='trace') 
+mcmc_plot(model.equip, type='dens_overlay') 
+mcmc_plot(model.equip, type='acf_bar')
+mcmc_plot(model.equip, type='rhat_hist')
+mcmc_plot(model.equip, type='neff_hist') 
+```
+
+#### stan plots 
+
+```{r stan-diag-model-equip, fig.height=9}
+stan_trace(model.equip$fit)
+stan_ac(model.equip$fit) 
+stan_rhat(model.equip$fit) 
+stan_ess(model.equip$fit)
+stan_dens(model.equip$fit, separate_chains = TRUE)
+```
+
+### {-}
+
+## {-}
+
+# Model compairisons {.tabset}
+
+## WAIC
+```{r model-comparisons-1}
+model1.waic <- waic(model1)
+model.equip.waic <- waic(model.equip) 
+loo_compare(model1.waic, model.equip.waic) 
+```  
+
+## LOO 
+```{r model-comparisons-2}
+LOO(model1, model.equip) 
+```
+## {-}
+
+It seems like additional information of chamber and system do not produce a more informative model
+
+# {-}
+
+# Randomn effects 
+
+Before we validate the model we will include out random effects: 
+
+1. **LEVEL**: What level the tank the clutch was held in, 1,2, or 3. 
+2. **FEMALE**: To account for the factor that some clutches came from the same breeding pair
+
+```{r random-effects, cache=TRUE}
+findpriors = get_prior(rate.output2 ~ region*dev.temp*poly(Temperature, 2) + cMASS + (1|LEVEL) + (1|female), 
+              family=gaussian(), 
+              data=lat_resp_dat2); findpriors
+priors = c(set_prior("normal(0,100)", class="b", coef="cMASS"), 
+           set_prior("normal(0,100)", class="b", coef="dev.temp30"),
+           set_prior("normal(0,100)", class="b", coef="dev.temp30:polyTemperature21"),
+           set_prior("normal(0,100)", class="b", coef="dev.temp30:polyTemperature22"),
+           set_prior("normal(0,100)", class="b", coef="dev.temp31"),
+           set_prior("normal(0,100)", class="b", coef="dev.temp31:polyTemperature21"),
+           set_prior("normal(0,100)", class="b", coef="dev.temp31:polyTemperature22"),
+           set_prior("normal(0,100)", class="b", coef="polyTemperature21"),
+           set_prior("normal(0,100)", class="b", coef="polyTemperature22"),
+           set_prior("normal(0,100)", class="b", coef="regionleading"),
+           set_prior("normal(0,100)", class="b", coef="regionleading:dev.temp30"),
+           set_prior("normal(0,100)", class="b", coef="regionleading:dev.temp30:polyTemperature21"),
+           set_prior("normal(0,100)", class="b", coef="regionleading:dev.temp30:polyTemperature22"),
+           set_prior("normal(0,100)", class="b", coef="regionleading:dev.temp31"),
+           set_prior("normal(0,100)", class="b", coef="regionleading:dev.temp31:polyTemperature21"),
+           set_prior("normal(0,100)", class="b", coef="regionleading:dev.temp31:polyTemperature22"),
+           set_prior("normal(0,100)", class="b", coef="regionleading:polyTemperature21"),
+           set_prior("normal(0,100)", class="b", coef="regionleading:polyTemperature22")
+           )
+model1.re <- brm(rate.output2 ~ region*dev.temp*poly(Temperature, 2) + cMASS + (1|LEVEL) + (1|female), 
+              family=gaussian(), 
+              prior = priors,
+              data=lat_resp_dat2, 
+              warmup = 1500, 
+              iter=4000, 
+              seed=123, 
+              cores=4, 
+              save_pars = save_pars(all=TRUE), 
+              chains=3, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+
+```
+# Model validation {.tabset}
+
+We will continue with the first model. lets start validating the model to see how it performed. The initial diagnostics seemed to be pretty good. Now lets check to see if it is violating any assumptions. 
+
+## Distribution 
+
+```{r model-validation}
+pp_check(model1.re, type = 'dens_overlay')
+```
+
+## DHARMa residuals
+
+```{r model-validation2}
+preds <- posterior_predict(model1.re, ndraws=250, summary=FALSE)
+model1.re.resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = na.omit(lat_resp_dat2$rate.output2), 
+                              fittedPredictedResponse = apply(preds, 2, median), 
+                              integerResponse = 'student')
+plot(model1.re.resids) 
+```
+
+# {-}
+
+## conditional_effects 
+
+```{r partial-plots-cond-eff-1}
+model1.re |> 
+  conditional_effects(spaghetti = TRUE, ndraws=200) 
+``` 
+
+# Model investigation {.tabset}
+
+## summary 
+
+```{r summary-100}
+summary(model1.re)
+```
+
+## R2 
+
+```{r r-squared}
+model1.re |> bayes_R2(summary = FALSE) |> median_hdci()
+```
+
+## tidyMCMC 
+
+```{r tidy}
+tidyMCMC(model1.re, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+```
+
+## gather draws 
+
+```{r gather_draws}
+#model1.re.wo |> get_variables()
+model1.re |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+  median_hdci()
+``` 
+
+## bayesplot 
+
+```{r bayesplot-1}
+model1.re |> mcmc_plot(type='intervals')
+```
+
+## emmeans - pariwise 
+
+```{r emmeans-pairwise}
+model1.re |> emmeans(pairwise ~ region*dev.temp, type="response") |> pairs(by="dev.temp") |> summary()
+```
+
+## probabilities 
+```{r probabilities}
+prob <- model1.re  |> emmeans(pairwise ~ region*dev.temp)
+prob2 <- prob$contrasts |> gather_emmeans_draws()
+prob2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
+
+```
+# {-}
