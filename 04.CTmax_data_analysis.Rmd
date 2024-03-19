@@ -1,0 +1,306 @@
+---
+title: "04.CTmax_data_analysis"
+author: "Elliott Schmidt"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    toc: true  
+    toc_depth: 4
+    toc_float: true
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 6
+    highlight: monochrome
+    theme: cerulean
+    latex_engine: xelatex
+--- 
+
+# Scenario 
+
+Within this chapter developmental plasticity was explored within _Acanthochromis polyacanthus_ that were collected from two different regions (i.e., low-latitude, Cairns, and high-latitude, Mackay). Fish were held in common garden experiments at 28.5 C. Clutch data was collected along with parental morphometeric data to determine how fish from each population performed at 28.5 C, a temperature that was shown to produce similar absoluate aerobic scope performances in a previous study [link]. Once hatched offspring were placed into three different temperature treatments, 28.5, 30, and 31.5 C. After approximately 5-6 months offspring length and weight was measured, as well as CTmax and respiration during CTmax trials. 
+
+# Load packages 
+
+```{r load-packages-1, warning=FALSE, message=FALSE}
+library(tidyverse) # data manipulation
+library(ggpubr) # figure arrangement 
+library(brms) # Bayesian models
+library(StanHeaders)# needed to run Bayesian models
+library(rstan) # needed to run Bayesian models
+library(standist) # needs to be installed 
+library(bayesplot) # needed for MCMC diagnostics 
+library(DHARMa) # model validation 
+library(ggdist) # partial plots 
+library(tidybayes) # partial plots 
+library(broom.mixed) # model investigation
+library(emmeans) # pairwise comparisons
+library(rstanarm) # pairwise comparisons - need for emmeans
+```
+
+# Set working directory 
+
+```{r setwd-1, echo=FALSE}
+knitr::opts_knit$set(root.dir="C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude")
+``` 
+
+```{r setwd-2, echo=TRUE, eval=FALSE}
+knitr::opts_knit$set(root.dir=working.dir)
+```
+
+# Import data 
+
+```{r import-data-1, message=FALSE}
+ctmax <- read_delim("import_files/CTmax_data.txt", 
+    delim = "\t", escape_double = FALSE, 
+    col_types = cols(LOE_MEAN_EAS = col_number(), 
+        ...30 = col_skip(), ...31 = col_skip()), 
+    trim_ws = TRUE)
+```
+
+# Data manipulation 
+
+```{r data manipulation}
+ctmax2 <- ctmax |> 
+  mutate(EXP_TANK = factor(EXP_TANK), 
+         TRAY_ORD = factor(TRAY_ORD), 
+         TRAY_COL = factor(TRAY_COL)) |>
+  mutate(EXP_TANK = case_when(EXP_TANK = is.na(EXP_TANK) ~ "999", 
+                              TRUE ~ EXP_TANK), 
+         TRAY_ORD = case_when(TRAY_ORD = is.na(TRAY_ORD) ~ "999", 
+                              TRUE ~ TRAY_ORD), 
+         TRAY_COL = case_when(TRAY_COL = is.na(TRAY_COL) ~ "black", 
+                              TRUE ~ TRAY_COL)) |>
+mutate(CLUTCH_NUMBER = factor(CLUTCH_NUMBER), 
+         MALE = factor(MALE), 
+         FEMALE = factor(FEMALE), 
+         REGION = factor(REGION), 
+         POPULATION = factor(POPULATION), 
+         DATE_OF_HATCH = as.Date(DATE_OF_HATCH, format = "%d/%m/%Y"),
+         DEV_TEMP = factor(DEV_TEMP), 
+         TANK = factor(TANK)) |> 
+  drop_na(LOE_MEAN_EAS) |> 
+  filter(LOE_MEAN_EAS >= 0)
+
+```
+
+# Exploratory data analysis 
+
+```{r eda-1}
+p1 <- ggplot(ctmax2, aes(x=REGION, y=LOE_MEAN_EAS, color=DEV_TEMP)) + 
+  geom_boxplot() + 
+  theme_classic()
+
+p2 <- ggplot(ctmax2, aes(x=REGION, y=LOE_MEAN_EAS, color=DEV_TEMP)) + 
+  geom_violin() + 
+  theme_classic(); p2
+
+ggarrange(p1,p2, 
+          nrow=1, 
+          ncol=2)
+```
+
+# Fit model
+
+Based on previous analysis that has been done we will be fitting a single model. This model will take into across the interaction between **REGION** * **DEV_TEMP**, **MASS**, and **EXPERIMENT**. **EXPERIMENT** is included to see if putting the fish in respiration chambers had an influence on the final CTmax temperatures 
+
+```{r fit-model-1, eval=FALSE, echo=TRUE}
+LOE_MEAN_EAS ~ REGION*DEV_TEMP + MASS + EXPERIMENT 
+```
+
+```{r fit-model-2, cache=TRUE}
+model1.ctmax <- brm(LOE_MEAN_EAS ~ REGION*DEV_TEMP + MASS + EXPERIMENT, 
+              family=gaussian(),
+              data = ctmax2, 
+              warmup = 4000, 
+              iter = 10000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              chains = 4, 
+              thin = 5, 
+              control = list(adapt_delta=0.95))
+```
+
+#### stan plots
+```{r mcmc-diag-model3-2, fig.height=9}
+stan_trace(model1.ctmax$fit)
+stan_ac(model1.ctmax$fit) 
+stan_rhat(model1.ctmax$fit) 
+stan_ess(model1.ctmax$fit)
+stan_dens(model1.ctmax$fit, separate_chains = TRUE)
+```
+
+# random effects 
+
+```{r random-effects, cache=TRUE}
+model1.ctmax.re <- brm(LOE_MEAN_EAS ~ DEV_TEMP*REGION + MASS + EXPERIMENT + (1|EXP_TANK) + (1|TRAY_ORD) + (1|MALE), 
+              family=gaussian(),
+              data = ctmax2, 
+              warmup = 1500, 
+              iter = 5000,
+              seed=123, 
+              cores=3, 
+              save_pars = save_pars(all=TRUE),  
+              chains = 3, 
+              thin = 5, 
+              control = list(adapt_delta=0.95))
+```
+
+# model diagnositics 
+
+```{r model-diag-1}
+#--- distribution check ---#
+pp_check(model1.ctmax.re, type = 'dens_overlay')
+
+#--- DHARMa checks ---#
+preds <- posterior_predict(model1.ctmax.re, ndraws=250, summary=FALSE)
+model1.ctmax.re.resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = na.omit(ctmax2$LOE_MEAN_EAS), 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.ctmax.re.resids) ; testDispersion(model1.ctmax.re.resids)
+```
+
+# partial plots 
+
+```{r partial-plots-cond-eff-1}
+model1.ctmax.re |> 
+  conditional_effects(spaghetti = TRUE, ndraws=200) 
+``` 
+
+# Model investigation {.tabset}
+
+## summary 
+
+```{r summary-100}
+summary(model1.ctmax.re)
+```
+
+## R2 
+
+```{r r-squared}
+model1.ctmax.re |> bayes_R2(summary = FALSE) |> median_hdci()
+```
+
+## tidyMCMC 
+
+```{r tidy}
+tidyMCMC(model1.ctmax.re, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+```
+
+## gather draws 
+
+```{r gather_draws}
+#model1.ctmax.re |> get_variables()
+model1.ctmax.re |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+  median_hdci()
+``` 
+
+## bayesplot 
+
+```{r bayesplot-1}
+model1.ctmax.re |> mcmc_plot(type='intervals')
+```
+
+## emmeans - pariwise 
+
+```{r emmeans-pairwise}
+model1.ctmax.re |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
+```
+
+## probabilities 
+```{r probabilities}
+#model1.ctmax.re |> emmeans(~ REGION | DEV_TEMP, at = list(DEV_TEMP = 31.5, length.out = 10)) |> pairs(type = 'response')
+prob <- model1.ctmax.re |> emmeans(pairwise ~ REGION*DEV_TEMP)
+prob2 <- prob$contrasts |> gather_emmeans_draws()
+prob2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
+```
+
+# {-}
+
+# summary figure 
+
+```{r summary-figure-1}
+var <- get_variables(model1.ctmax.re); var
+var1 <- get_variables(model1.ctmax.re)[c(1:4,7:8)] ; var1 
+
+int_draws_spread <- model1.ctmax.re |> spread_draws(!!!syms(var1)) 
+
+int_draws_spread2 <- int_draws_spread |> 
+  gather_draws(b_Intercept, b_REGIONleading) |> 
+  left_join(int_draws_spread, by = c(".chain",".iteration",".draw"))
+  
+  
+int_draws <- int_draws_spread2 |> 
+  mutate(x28.5 = case_when(`.variable` == 'b_Intercept' ~ 
+                                 `.value`, 
+                               `.variable` != 'b_Intercept' ~ 
+                                 `.value` + b_Intercept), 
+         
+         x30 = case_when(`.variable` == 'b_Intercept' ~ 
+                                 `.value` + b_DEV_TEMP30, 
+                             `.variable` == 'b_REGIONleading' ~ 
+                                 `.value` + b_Intercept + b_DEV_TEMP30 + `b_DEV_TEMP30:REGIONleading`), 
+         
+         x31.5 = case_when(`.variable` == 'b_Intercept' ~ 
+                                 `.value` + b_DEV_TEMP31.5, 
+                             `.variable` == 'b_REGIONleading' ~ 
+                                 `.value` + b_Intercept + b_DEV_TEMP31.5 + `b_DEV_TEMP31.5:REGIONleading`))
+  
+int_draws_plotting <- int_draws |> 
+  pivot_longer(cols = starts_with("x"), 
+               names_to = "DEV_TEMP", 
+               values_to = "CTMAX") |> 
+  transmute(LATITUDE = case_when(`.variable` == "b_Intercept" ~ "Low latitude", 
+                                 `.variable` == "b_REGIONleading" ~ "High latitude"), 
+            DEV_TEMP = case_when(DEV_TEMP == 'x28.5' ~ 'DEV_TEMP_28.5', 
+                                 DEV_TEMP == 'x30' ~ 'DEV_TEMP_30', 
+                                 DEV_TEMP == 'x31.5' ~ 'DEV_TEMP_31.5'),
+            CTMAX = CTMAX, 
+            LATITUDE_B = LATITUDE, 
+            DEV_TEMP_B = DEV_TEMP,
+            chain = `.chain`, 
+            iteration = `.iteration`, 
+            draw_n = `.draw`) |> 
+  unite("EXP_GROUP",LATITUDE_B, DEV_TEMP_B,sep="_") |> 
+  mutate(EXP_GROUP = as.factor(EXP_GROUP)) |> 
+  mutate(EXP_GROUP = factor(EXP_GROUP, levels=c("High latitude_DEV_TEMP_28.5","High latitude_DEV_TEMP_30", "High latitude_DEV_TEMP_31.5",
+                                                "Low latitude_DEV_TEMP_28.5","Low latitude_DEV_TEMP_30", "Low latitude_DEV_TEMP_31.5")))
+
+
+ctmax.plot <- int_draws_plotting |> 
+  ggplot(aes(x=EXP_GROUP, y=CTMAX)) + 
+  #geom_hline(yintercept = 0, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
+  stat_halfeye(aes(fill = EXP_GROUP, fill_ramp = after_stat(level)), 
+               point_interval = mode_hdci, 
+               .width = c(.66, .90, .95)) + 
+  scale_fill_ramp_discrete(na.translate=FALSE, 
+                           labels =c("0.95","0.90","0.66"), 
+                           name = "Credible interval") +
+  scale_fill_manual(values = c("lightskyblue" ,"dodgerblue2", "dodgerblue4","coral", "red2","firebrick4"))+ 
+  #scale_y_continuous(limits=c(-6,6), breaks = seq(-6,6, 1))+
+  ylab("Temperature (\u00B0C)") + xlab("EXPERIMENTAL GROUP") +
+  scale_x_discrete(labels = c("Low latitude_DEV_TEMP_28.5" = paste0("Low latitude 28.5","\u00B0","C"), 
+                              "Low latitude_DEV_TEMP_30" = paste0("Low latitude 30","\u00B0","C"),
+                              "Low latitude_DEV_TEMP_31.5" = paste0("Low latitude 31.5","\u00B0","C"), 
+                              "High latitude_DEV_TEMP_28.5" = paste0("High latitude 28.5","\u00B0","C"),
+                              "High latitude_DEV_TEMP_30" = paste0("High latitude 30","\u00B0","C"),
+                              "High latitude_DEV_TEMP_31.5" = paste0("High latitude 31.5","\u00B0","C"))) +
+  #annotate("text", x=6.8,y=1.4, label = paste0(round(mean(ctmax2$ctmax), 2)," (mm)"), color="grey58") +
+  coord_flip() + 
+  theme_classic() + 
+  guides(fill = "none") + 
+  theme(legend.position = c(.88,.86), 
+        axis.title.y = element_text(margin = margin(r =0.3, unit = "in"), size = 12), 
+        axis.title.x = element_text(margin = margin(t = 0.3, unit="in"), size =12), 
+        legend.key = element_rect(color="black", size=1.25)); ctmax.plot
+```
+
+
+```{r eval=FALSE, echo=TRUE}
+ggsave(file="./figures/ctmax.plot.svg",  plot=ctmax.plot, width=8, height=5, units = "in", dpi=300) 
+ggsave(file="./figures/ctmax.plot.pdf",  plot=ctmax.plot, width=8, height=5, units = "in", dpi=300)
+```
