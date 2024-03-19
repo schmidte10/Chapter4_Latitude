@@ -79,27 +79,33 @@ mutate(CLUTCH_NUMBER = factor(CLUTCH_NUMBER),
          REGION = factor(REGION), 
          POPULATION = factor(POPULATION), 
          DATE_OF_HATCH = as.Date(DATE_OF_HATCH, format = "%d/%m/%Y"),
+         DATE_CTMAX = as.Date(DATE_CTMAX, format = "%d/%m/%Y"),
          DEV_TEMP = factor(DEV_TEMP), 
          TANK = factor(TANK)) |> 
   drop_na(LOE_MEAN_EAS) |> 
-  filter(LOE_MEAN_EAS >= 0)
+  filter(LOE_MEAN_EAS >= 35) # This excludes one outlier that had the CTmax value <35 C
 
 ```
 
 # Exploratory data analysis 
 
-```{r eda-1}
+```{r eda-1, fig.width=18, fig.height=8}
 p1 <- ggplot(ctmax2, aes(x=REGION, y=LOE_MEAN_EAS, color=DEV_TEMP)) + 
   geom_boxplot() + 
   theme_classic()
 
 p2 <- ggplot(ctmax2, aes(x=REGION, y=LOE_MEAN_EAS, color=DEV_TEMP)) + 
   geom_violin() + 
-  theme_classic(); p2
+  theme_classic()
 
-ggarrange(p1,p2, 
+p3 <- ggplot(ctmax2, aes(x=DATE_CTMAX, y=LOE_MEAN_EAS, color = DATE_CTMAX)) + 
+  geom_point() + 
+  ggtitle("Batchs") +
+  theme_classic()
+
+ggarrange(p1,p2,p3, 
           nrow=1, 
-          ncol=2)
+          ncol=3)
 ```
 
 # Fit model
@@ -111,7 +117,7 @@ LOE_MEAN_EAS ~ REGION*DEV_TEMP + MASS + EXPERIMENT
 ```
 
 ```{r fit-model-2, cache=TRUE}
-model1.ctmax <- brm(LOE_MEAN_EAS ~ REGION*DEV_TEMP + MASS + EXPERIMENT, 
+model1.ctmax <- brm(LOE_MEAN_EAS ~ REGION*DEV_TEMP + MASS + EXPERIMENT + DATE_CTMAX, 
               family=gaussian(),
               data = ctmax2, 
               warmup = 4000, 
@@ -171,7 +177,7 @@ model1.ctmax.re |>
   conditional_effects(spaghetti = TRUE, ndraws=200) 
 ``` 
 
-# Model investigation {.tabset}
+# Model investigation {.tabset .tabset-pills}
 
 ## summary 
 
@@ -218,14 +224,14 @@ prob <- model1.ctmax.re |> emmeans(pairwise ~ REGION*DEV_TEMP)
 prob2 <- prob$contrasts |> gather_emmeans_draws()
 prob2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 ```
+## {-}
 
-# {-}
 
 # summary figure 
 
-```{r summary-figure-1}
-var <- get_variables(model1.ctmax.re); var
-var1 <- get_variables(model1.ctmax.re)[c(1:4,7:8)] ; var1 
+```{r summary-figure-1, warning=FALSE}
+var <- get_variables(model1.ctmax.re)
+var1 <- get_variables(model1.ctmax.re)[c(1:4,7:8)] 
 
 int_draws_spread <- model1.ctmax.re |> spread_draws(!!!syms(var1)) 
 
