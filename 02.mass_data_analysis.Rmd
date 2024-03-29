@@ -54,7 +54,7 @@ knitr::opts_knit$set(root.dir=working.dir)
 # Import data 
 
 ```{r import-data-1, message=FALSE}
-growth <- read_delim("../import_files/growth_data.txt", 
+growth <- read_delim("./import_files/growth_data.txt", 
     delim = "\t", escape_double = FALSE, 
     col_types = cols(NOTES = col_skip(), 
         ...16 = col_skip(), ...17 = col_skip()), 
@@ -261,9 +261,190 @@ ggarrange(male.mass.plot, female.mass.plot, male.length.plot, female.length.plot
           ncol=2, 
           nrow=2)
 ```
-# {-} 
+# {-}  
 
-# Fit model 
+# Removal of outliers
+
+There seems to be three areas that standout as potentially possessing outliers: 
+
+1. The single individual that is >4 grams. This individual is more than double the size of the average individual. 
+2. The cluster of individuals between 1 and 2grams that are below ~25 mm. Also there is no observable trend in this points (i.e., they are not all form the same developmental temperature, clutch, or population, which could have explained why they performed differently). 
+3. Individuals that are floating above the main cluster. These could be individuals that grew rapidly and outcompeted diblings in their tank, or perhaps their tank had low density to begin with.  
+
+Individuals identified in numbered points one and two are not unexpected. These data points will be double check to ensure they were entered correctly, if so they will be removed from the data set. 
+
+It looks like there are some issues with the model. Mainly around the presence of outliers. Some of these outliers could be seen in our explanatory data analysis. Let's revisit our raw data to check and remove the presence of outliers. 
+
+
+```{r outlier-removal-2}
+growth3 <- growth2 |> 
+  filter(MASS < 4, na.rm=TRUE, 
+         FULTONK < 0.079, 
+         FULTONK > 0.01, 
+         DENSITY > 3)  
+```
+
+
+
+note this also removes NA's therefore the difference in data frames is 21 row: 
+
+* 1 datum point with MASS greater than 4  
+* 1 datum point with high value (removed via FULTONK being less than 0.01) 
+* 2 data points where the tank density was 2
+* 9 data points with low values (removed via FULTONK being greater than 0.079)
+* 8 NA's removed 
+* **Total: 21** 
+
+Now Let's look at out plots again 
+
+```{r outlier-removal-4,  warning=FALSE, message=FALSE, echo=FALSE, fig.height=9, fig.width=9}
+p1.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("All points") +
+  theme_classic()
+
+p2.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=REGION)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) +  
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Latitude") +
+  theme_classic() + 
+  theme(legend.position = "none") 
+
+p3.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=POPULATION)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Population") +
+  theme_classic() +
+  theme(legend.position = "none")
+
+p4.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=CLUTCH_NUMBER)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) +  
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("CLUTCH_NUMBER") +
+  theme_classic() + 
+  theme(legend.position = "none") 
+
+p5.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=DEV_TEMP)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) +  
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Developmetnal temperature") +
+  theme_classic() + 
+  theme(legend.position = "none")
+
+eda2 <- ggarrange(p1.wo,p2.wo,p3.wo,p4.wo,p5.wo, 
+          ncol = 2, 
+          nrow=3); eda2
+```
+
+
+# Fit model [random factors]
+
+First we will place random factors only within out model and see if they do a good job explaining the variance within our model. We will also be include piors which will be based off of out length data.
+
+## Prior investigation 
+```{r }
+growth3 |> 
+  group_by(REGION,DEV_TEMP) |> 
+  summarise(mean(na.omit(MASS)), 
+            sd(na.omit(MASS))) 
+
+```
+
+## Priors 
+```{r priors-2}
+model.re.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE))
+get_prior(model.re.formula, data=growth3)
+mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(student_t(3, 0, 0.53), class = "sigma")
+```
+
+## Model 1- random factors
+```{r fit-model-1, cache=TRUE} 
+model.re <- brm(model.re.formula,
+              data = growth3, 
+              prior = mass.priors.re,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model.re) 
+saveRDS(model.re, file="./02.mass_data_analysis_files/model.randomfactors.RDS")
+```
+
+## model validation [random factors]
+```{r model-diag-1}
+stan_trace(model.re$fit)
+stan_ac(model.re$fit) 
+stan_rhat(model.re$fit) 
+stan_ess(model.re$fit)
+stan_dens(model.re$fit, separate_chains = TRUE)
+```
+
+## Priors 
+```{r priors-2}
+model.re2.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER))
+get_prior(model.re.formula, data=growth3)
+mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(student_t(3, 0, 0.53), class = "sigma")
+```
+
+
+## Model 2 - random factors
+```{r fit-model-1, cache=TRUE} 
+model.re2 <- brm(model.re2.formula,
+              data = growth3, 
+              prior = mass.priors.re,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model.re2) 
+saveRDS(model.re2, file="./02.mass_data_analysis_files/model.randomfactors2.RDS")
+```
+
+## model validation [random factors]
+```{r model-diag-1}
+stan_trace(model.re2$fit)
+stan_ac(model.re2$fit) 
+stan_rhat(model.re2$fit) 
+stan_ess(model.re2$fit)
+stan_dens(model.re2$fit, separate_chains = TRUE)
+```
+
+### LOO
+```{r model-comparisons-2}
+LOO(model.re, model.re2) 
+```
+
+CLUTCH_ORDER **does not** improve the model. Therefore it will not be used moving forward. 
+
+# Fit model {.tabset}
 
 Great lets start to fit our models. There are number of variables within our data frame some of which may or may not be important. To investigate which variables are important and which are not will test different hypotheses that use different combinations of variables that are suited to answer reasonable hypotheses.  
 
@@ -296,33 +477,46 @@ Once these models are run will be investigate their summary statistics to determ
 Also because we are doing Bayesian modelling we will be listing priors. Our length data is normally distributed as shown in some of the exploratory data analysis plots. We can confirm this assumption during the model validation stage as well. Out starting priors will be uninformative priors with distribution of gaussian(0,1), this may or may not change as we progress. 
 
 ## Basic model
+
+### Prior investigation 
+```{r }
+growth3 |> 
+  group_by(REGION,DEV_TEMP) |> 
+  summarise(mean(na.omit(MASS)), 
+            sd(na.omit(MASS))) 
+
+``` 
+### Priors and formula
+```{r priors-2}
+model1.formula <- bf(MASS ~ 1 + 
+                         DEV_TEMP*REGION + 
+                         scale(MALE_MASS, center=TRUE, scale=TRUE) + 
+                         scale(DENSITY, center=TRUE, scale=TRUE) + 
+                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
+                         scale(LENGTH, center=TRUE, scale=TRUE) + 
+                         (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE), 
+                         family=gaussian())
+get_prior(model1.formula, data=growth3)
+mass.priors <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(normal(0, 0.25), class="b") +
+  prior(student_t(3, 0, 0.53), class = "sigma")
+```
+
+### Model 
 ```{r fit-model-1, cache=TRUE}
-model1 <- brm(cMASS ~ DEV_TEMP*REGION + cFEMALE_MASS + cDENSITY + cAGE_DAYS + cLENGTH,
-              family=gaussian(),
-              data = growth2, 
-              warmup = 4000, 
-              iter = 10000,
+model1 <- brm(model1.formula,
+              data = growth3, 
+              warmup = 500, 
+              iter = 5000,
               seed=123, 
               cores=2, 
               save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5) 
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
 prior_summary(model1) 
+saveRDS(model1, file="./02.mass_data_analysis_files/model1.mass.RDS")
 ```
-
-In this summary statistic table it tells us: 
-
-* for the intercept, it is using a student t(flatter normal) prior with a mean of -0.1 and a standard deviation of 2.5. These values are derived from the median and median absolute deviation of the response variable 
-
-
-```{r fit-model-1-3}
-standist::visualize("student_t(3,-0.1,2.5)", xlim=c(-5,5))
-standist::visualize("student_t(3,-0.1,2.5)", xlim=c(-5,5))
-```
-
-* for the beta coefficients, including **cDENSITY**, **cFEMALE_STANDARD_LENGTH**, **DEV_TEMP**, the default priors are inproper flat priors. 
-
-* The prior on sigma is also a student t with a mean of **0** and a standard deviation of **0.407** 
 
 ### MCMC sampling diagnostics {.tabset} 
 
@@ -346,16 +540,55 @@ stan_ess(model1$fit)
 stan_dens(model1$fit, separate_chains = TRUE)
 ```
 
-### {-}  
+#### {-}  
 
-### Summary 
 
-```{r summary-1}
-summary(model1)
-```
-Within this model **cFEMALE_MASS**, and **cAGE_DAYS** have little influence on the model. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## Maternal effects model 
+
+### Priors and formula
+```{r priors-2}
+model1.formula <- bf(MASS ~ 1 + 
+                         DEV_TEMP*REGION + 
+                         scale(MALE_MASS, center=TRUE, scale=TRUE) + 
+                         scale(DENSITY, center=TRUE, scale=TRUE) + 
+                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
+                         scale(LENGTH, center=TRUE, scale=TRUE) + 
+                         scale(DAYS_INT_TREATMENT, center=TRUE, scale=TRUE) + 
+                         scale(EGG_COUNT, center=TRUE, scale=TRUE) + 
+                         scale(HATCHING_SUCCESS, center=TRUE, scale=TRUE) + 
+                         (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE), 
+                         family=gaussian())
+get_prior(model1.formula, data=growth3)
+mass.priors <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(normal(0, 0.25), class="b") +
+  prior(student_t(3, 0, 0.53), class = "sigma")
+```
 
 ```{r fit-model-2, cache=TRUE}
 model.mat <- brm(cMASS ~ DEV_TEMP*REGION + cFEMALE_MASS + cDENSITY + cAGE_DAYS + DAYS_IN_TREATMENT + EGG_COUNT + HATCHING_SUCCESS + CLUTCH_ORDER + cLENGTH,
