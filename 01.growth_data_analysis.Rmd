@@ -589,6 +589,7 @@ LOO(model1, model.geo)
 
 
 ## {-}
+
 All model comparison methods indicate that **model1** outperforms **model.geo**. Therefore we will proceed with **model1** 
 
 # Model validation 
@@ -665,10 +666,6 @@ model1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_
 
 ```
 # {-}
-
- 
-
-
 
 # summary figure 
 
