@@ -133,7 +133,22 @@ The second hypothesis will include factors such as **CLUTCH_ORDER** and **DAYS_I
 MASS ~ REGION + cMALE_MASS + HATCHLINGS + CLUTCH_ORDER + DAYS_IN_TREATMENT
 ``` 
 
+```{r }
+hmass2 |> 
+  group_by(REGION) |> 
+  summarise(mean(MASS), 
+            sd(MASS))
+```
+
 ## Basic model
+```{r}
+form <- bf(cMASS ~ REGION + cMALE_MASS + HATCHLINGS, 
+              family=gaussian())
+get_prior(form, data = hmass2)
+priors <- prior(normal(0.004, 0.001), class="INtercept") +
+  prior(normal(0, 0.001), class ="b") +
+  prior(student_t(3, 0, 0.001), class = "sigma")
+```
 
 ```{r fit-model-3, cache=TRUE}
 model1.hmass <- brm(cMASS ~ REGION + cMALE_MASS + HATCHLINGS, 
@@ -144,6 +159,8 @@ model1.hmass <- brm(cMASS ~ REGION + cMALE_MASS + HATCHLINGS,
               iter = 10000,
               seed=123, 
               cores=2, 
+              prior = priors
+              sample_prior = "yes",
               save_pars = save_pars(all=TRUE),  
               chains = 4, 
               thin = 5, 

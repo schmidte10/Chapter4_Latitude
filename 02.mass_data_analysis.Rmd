@@ -778,6 +778,74 @@ model1.tsqrt.student.resids <- createDHARMa(simulatedResponse = t(preds),
 plot(model1.tsqrt.student.resids) ; testDispersion(model1.tsqrt.student.resids)
 ``` 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Basic model
+```{r fit-model-1, cache=TRUE}
+model1.mass <- brm(MASS ~ DEV_TEMP*REGION + 
+                scale(FEMALE_MASS, center=TRUE, scale=TRUE) + 
+                scale(DENSITY, center=TRUE, scale=TRUE) + 
+                scale(AGE_DAYS, center=TRUE, scale=TRUE) + 
+                scale(LENGTH, center=TRUE, scale=TRUE) + 
+                (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE),
+              family=gaussian(),
+              data = growth2, 
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              chains = 4, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model1) 
+```
+
 # Model investigation {.tabset}
 
 ## summary 
