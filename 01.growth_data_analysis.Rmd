@@ -550,6 +550,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
 ```{r fit-model-3, cache=TRUE}
 model.geo <- brm(model.geo.formula,
               data = growth3, 
+              priors=growth.priors,
               warmup = 500, 
               iter = 5000,
               seed=123, 
