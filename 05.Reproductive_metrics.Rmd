@@ -94,6 +94,12 @@ ggplot(clutch_data2, aes(x=REGION, y=EGG_COUNT, fill=REGION)) +
   geom_boxplot() + 
   scale_y_continuous(limits = c(0, 800), breaks = seq(0,800, 100)) +
   theme_classic()
+
+ggplot(clutch_data2, aes(x=MALE_MASS, y=EGG_COUNT, color=REGION)) + 
+  geom_point() + 
+  scale_y_continuous(limits = c(0, 800), breaks = seq(0,800, 100)) + 
+  geom_smooth(method = "lm") +
+  theme_classic()
 ```
 
 ## Hatching success
@@ -137,20 +143,211 @@ HATCHING_SUCCESS ~ REGION + cMALE_MASS + CLUTCH_ORDER + DAYS_IN_TREATMENT
 ``` 
 
 # Egg counts 
+
+## Fit model [Random factors]
+
+### Prior investigation 
+```{r }
+clutch_data2 |> 
+  group_by(REGION) |> 
+  summarise(mean(na.omit(EGG_COUNT)), 
+            sd(na.omit(EGG_COUNT))) 
+```
+
+### Priors and formula
+```{r priors-2}
+eggcounts.null <- bf(EGG_COUNT ~ 1, 
+                     family=poisson())
+get_prior(eggcounts.null, data=clutch_data2)
+
+
+eggcount.priors <- prior(normal(425, 100), class="Intercept") 
+```
+
+### Null Model 
+```{r fit-model-1, cache=TRUE}
+model.eggcount.null <- brm(eggcounts.null,
+              data = clutch_data2, 
+              prior = eggcount.priors,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE), 
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model.eggcount.null) 
+saveRDS(model.eggcount.null, file="./05.Reproductive_metrics_files/model.eggcount.null.RDS")
+```
+
+### Priors and formula
+```{r priors-2}
+model1.eggcounts.re.formula <- bf(EGG_COUNT ~ 1 + (1| POPULATION) + (1| MALE), 
+                     family=poisson())
+
+get_prior(model1.eggcounts.re.formula, 
+          data=clutch_data2)
+
+
+eggcount.priors <- prior(normal(425, 100), class="Intercept") 
+```
+
+### Model 1
+```{r fit-model-1, cache=TRUE}
+model1.eggcount.re <- brm(model1.eggcounts.re.formula,
+              data = clutch_data2, 
+              prior = eggcount.priors,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE), 
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model1.eggcount.re ) 
+saveRDS(model1.eggcount.re , file="./05.Reproductive_metrics_files/model1.eggcount.re.RDS")
+```
+
+#### stan plots
+```{r mcmc-diag-model1-2, fig.height=9}
+stan_trace(model1.eggcount.re$fit)
+stan_ac(model1.eggcount.re$fit) 
+stan_rhat(model1.eggcount.re$fit) 
+stan_ess(model1.eggcount.re$fit)
+stan_dens(model1.eggcount.re$fit, separate_chains = TRUE)
+```
+
+### Priors and formula
+```{r priors-2}
+model2.eggcounts.re.formula <- bf(EGG_COUNT ~ 1 + (1| MALE), 
+                     family=poisson())
+
+get_prior(model2.eggcounts.re.formula, 
+          data=clutch_data2)
+
+
+eggcount.priors <- prior(normal(425, 100), class="Intercept") 
+```
+
+### Model 2
+```{r fit-model-1, cache=TRUE}
+model2.eggcount.re <- brm(model2.eggcounts.re.formula,
+              data = clutch_data2, 
+              prior = eggcount.priors,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE), 
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model2.eggcount.re ) 
+saveRDS(model2.eggcount.re , file="./05.Reproductive_metrics_files/model2.eggcount.re.RDS")
+```
+
+#### stan plots
+```{r mcmc-diag-model1-2, fig.height=9}
+stan_trace(model2.eggcount.re$fit)
+stan_ac(model2.eggcount.re$fit) 
+stan_rhat(model2.eggcount.re$fit) 
+stan_ess(model2.eggcount.re$fit)
+stan_dens(model2.eggcount.re$fit, separate_chains = TRUE)
+```
+
+# Model 3 
+
+### Priors and formula
+```{r priors-2}
+model3.eggcounts.re.formula <- bf(EGG_COUNT ~ 1 + (1| MALE) + (1|CLUTCH_ORDER), 
+                     family=poisson())
+
+get_prior(model3.eggcounts.re.formula, 
+          data=clutch_data2)
+
+
+eggcount.priors <- prior(normal(425, 100), class="Intercept") 
+```
+
+```{r fit-model-1, cache=TRUE}
+model3.eggcount.re <- brm(model3.eggcounts.re.formula,
+              data = clutch_data2, 
+              prior = eggcount.priors,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE), 
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model3.eggcount.re ) 
+saveRDS(model3.eggcount.re , file="./05.Reproductive_metrics_files/model3.eggcount.re.RDS")
+```
+
+#### stan plots
+```{r mcmc-diag-model1-2, fig.height=9}
+stan_trace(model3.eggcount.re$fit)
+stan_ac(model3.eggcount.re$fit) 
+stan_rhat(model3.eggcount.re$fit) 
+stan_ess(model3.eggcount.re$fit)
+stan_dens(model3.eggcount.re$fit, separate_chains = TRUE)
+```
+
+
+### LOO
+```{r model-comparisons-2}
+LOO(model.eggcount.null, model2.eggcount.re, model1.eggcount.re, model3.eggcount.re) 
+```
+
+The model with clutch order scores the best here, but does not perform well in models below. Random factors used below will contain the random factor(s) in **model2.eggcount.re**.
+
+# Fit model [fixed factors]
+
+### Prior investigation 
+```{r }
+clutch_data2 |> 
+  group_by(REGION) |> 
+  summarise(mean(na.omit(EGG_COUNT)), 
+            sd(na.omit(EGG_COUNT))) 
+```
+
+### Priors and formula
+```{r priors-2}
+model1.eggcounts.formula <- bf(EGG_COUNT ~ 1 + 
+                       REGION + 
+                       scale(MALE_MASS, center=TRUE, scale=TRUE) + 
+                       (1|MALE), 
+                     family=poisson())
+
+get_prior(model1.eggcounts.formula, data=clutch_data2)
+
+eggcount.priors <- prior(normal(425, 100), class="Intercept") +  
+  prior(normal(0, 40), class="b")
+```
+
 ## Basic model
 
 ```{r fit-model-3, cache=TRUE}
-model1.eggcount <- brm(EGG_COUNT ~ REGION + cMALE_MASS, 
-              family=gaussian(),
+model1.eggcount <- brm(model1.eggcounts.formula,
               data = clutch_data2, 
-              warmup = 4000, 
-              iter = 10000,
+              warmup = 500, 
+              iter = 5000,
               seed=123, 
+              sample_prior= "yes",
               cores=2, 
               save_pars = save_pars(all=TRUE),  
               chains = 4, 
               thin = 5, 
               control = list(adapt_delta=0.99))
+saveRDS(model1.eggcount, file="./05.Reproductive_metrics_files/model1.eggcount.RDS")
+
 ```
 
 ```{r fit-model-4, fig.height=9}
@@ -163,18 +360,48 @@ stan_dens(model1.eggcount$fit, separate_chains = TRUE)
 
 ## Temporal model
 
+### collinearity 
+```{r collinearity}
+mcol <- lm(EGG_COUNT ~ 1 + 
+                       REGION + CLUTCH_ORDER + 
+                       scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE) +
+                       scale(MALE_MASS, center=TRUE, scale=TRUE), 
+           family=gaussian(),  
+           data=clutch_data2); vif(mcol) 
+
+ggplot(clutch_data2, 
+       aes(x=CLUTCH_ORDER, y=DAYS_IN_TREATMENT)) + 
+  geom_point()
+```
+
+### Priors and formula
+```{r priors-2}
+model2.eggcounts.formula <- bf(EGG_COUNT ~ 1 + 
+                       REGION + 
+                       scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE) +
+                       scale(MALE_MASS, center=TRUE, scale=TRUE) + 
+                       (1|MALE), 
+                     family=poisson())
+
+get_prior(model2.eggcounts.formula, data=clutch_data2)
+
+eggcount.priors <- prior(normal(425, 100), class="Intercept") +  
+  prior(normal(0, 40), class="b")
+```
+
 ```{r fit-model-5, cache=TRUE}
-model2.eggcount <- brm(EGG_COUNT ~ REGION + cMALE_MASS + CLUTCH_ORDER + DAYS_IN_TREATMENT, 
-              family=gaussian(),
+model2.eggcount <- brm(model2.eggcounts.formula,
               data = clutch_data2, 
-              warmup = 4000, 
-              iter = 10000,
+              warmup = 500, 
+              iter = 5000,
               seed=123, 
               cores=2, 
               save_pars = save_pars(all=TRUE),  
+              sample_prior = "yes",
               chains = 4, 
               thin = 5, 
               control = list(adapt_delta=0.99))
+saveRDS(model2.eggcount, file="./05.Reproductive_metrics_files/model2.eggcount.RDS")
 ```
 
 ```{r fit-model-6, fig.height=9}
@@ -185,205 +412,212 @@ stan_ess(model2.eggcount$fit)
 stan_dens(model2.eggcount$fit, separate_chains = TRUE)
 ```
 
+
+# Model 3 
+
+### Priors and formula
+```{r priors-2}
+model3.eggcounts.formula <- bf(EGG_COUNT ~ 1 + 
+                       REGION*scale(MALE_MASS, center=TRUE, scale=TRUE) + 
+                       scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE) +
+                       (1|MALE), 
+                     family=poisson())
+
+get_prior(model3.eggcounts.formula, data=clutch_data2)
+
+eggcount.priors <- prior(normal(425, 100), class="Intercept") +  
+  prior(normal(0, 40), class="b")
+```
+
+```{r fit-model-5, cache=TRUE}
+model3.eggcount <- brm(model3.eggcounts.formula,
+              data = clutch_data2, 
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior = "yes",
+              chains = 4, 
+              thin = 5, 
+              control = list(adapt_delta=0.99))
+saveRDS(model3.eggcount, file="./05.Reproductive_metrics_files/model3.eggcount.RDS")
+```
+
+```{r fit-model-6, fig.height=9}
+stan_trace(model3.eggcount$fit)
+stan_ac(model3.eggcount$fit) 
+stan_rhat(model3.eggcount$fit) 
+stan_ess(model3.eggcount$fit)
+stan_dens(model3.eggcount$fit, separate_chains = TRUE)
+```
 Looks like the models ran well. Know lets do some model comparisons 
 
 ## Model compairsons {.tabset .tabset-pills}
 
-### WAIC
-```{r model-comparisons-1}
-model1.eggcount.waic <- waic(model1.eggcount)
-model2.eggcount.waic <- waic(model2.eggcount) 
-#model.mat.waic <- waic(model.mat)
-loo_compare(model1.eggcount.waic, model2.eggcount.waic) 
-```  
-
 ### LOO
 ```{r model-comparisons-2}
-LOO(model1.eggcount, model2.eggcount) 
+LOO(model1.eggcount, model2.eggcount, model3.eggcount, 
+    moment_match = TRUE, 
+    reloo = TRUE) 
 ```
 
-### Bayes facotr
-```{r model-comparisons-3}
-bayes_factor(model1.eggcount, model2.eggcount)
-```
-
-## {-}
-
-model1.eggcount seems to be the preferred model. Before moving onto model validation, random effects will be included within the model. Two different random effects will be included in the model, **MALE** to account for which pair laid the clutch, and some pairs laid two clutches that were included in the experiment, as well as **POPULATION** as some pairs were from the same population. 
-
-## Random effects model
-
-```{r final-model-1, cache=TRUE}
-model1.eggcount.re <- brm(EGG_COUNT ~ REGION + cMALE_MASS + (1|MALE) + (1|POPULATION), 
-              family=gaussian(),
-              data = clutch_data2, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.99))
-```
+### {-}
 
 ### Model diagnositics 
 
 ```{r diag-1}
 #--- distribution check ---#
-pp_check(model1.eggcount.re, type = 'dens_overlay')
+pp_check(model3.eggcount, type = 'dens_overlay')
 ```
 
 ```{r diag-2}
-preds <- posterior_predict(model1.eggcount.re, ndraws=250, summary=FALSE)
-model1.eggcount.re.resids <- createDHARMa(simulatedResponse = t(preds), 
+preds <- posterior_predict(model3.eggcount, ndraws=250, summary=FALSE)
+model3.eggcount.re.resids <- createDHARMa(simulatedResponse = t(preds), 
                               observedResponse = na.omit(clutch_data2$EGG_COUNT), 
                               fittedPredictedResponse = apply(preds, 2, mean), 
                               integerResponse = 'student')
-plot(model1.eggcount.re.resids) ; testDispersion(model1.eggcount.re.resids)
+plot(model3.eggcount.re.resids) ; testDispersion(model3.eggcount.re.resids)
 ``` 
 
-## Model re-fit (log-link) 
+# Partial effects plots 
 
-```{r model-refit-1, cache=TRUE}
-model1.eggcount.re.log <- brm(EGG_COUNT ~ REGION + cMALE_MASS + (1|MALE) + (1|POPULATION), 
-              family=gaussian(link="log"),
-              data = clutch_data2, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.99))
+## conditional_effects 
 
-```
-
-### Model diagnositics 
-
-```{r refit-diag-1}
-#--- distribution check ---#
-pp_check(model1.eggcount.re.log, type = 'dens_overlay')
-```
-
-```{r refit-diag-2}
-preds <- posterior_predict(model1.eggcount.re.log, ndraws=250, summary=FALSE)
-model1.eggcount.re.log.resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = na.omit(clutch_data2$EGG_COUNT), 
-                              fittedPredictedResponse = apply(preds, 2, mean), 
-                              integerResponse = 'student')
-plot(model1.eggcount.re.log.resids) ; testDispersion(model1.eggcount.re.log.resids)
+```{r partial-plots-cond-eff-1}
+model3.eggcount |> 
+  conditional_effects(spaghetti = TRUE, ndraws=200)
 ``` 
 
-This isn't too bad. But lets see if we can different distributuons, maybe a gamme or negative binomial, distribution to see if it will help. 
+# Model investigation {.tabset}
 
-## Model re-fit (distributions) {.tabset .tabset-pills}
+## summary 
 
-### Poisson 
+```{r summary-100}
+summary(model3.eggcount)
+```
 
-```{r poisson-re-fit-1, cache=TRUE}
-model1.eggcount.re.poi <- brm(EGG_COUNT ~ REGION + cMALE_MASS + (1|MALE) + (1|POPULATION), 
-              family=poisson(),
-              data = clutch_data2, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.99))
+## R2 
+
+```{r r-squared}
+model3.eggcount |> bayes_R2(summary = FALSE) |> median_hdci()
+```
+
+## tidyMCMC 
+
+```{r tidy}
+tidyMCMC(model3.eggcount, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+```
+
+## gather draws 
+
+```{r gather_draws}
+#model1.re.wo |> get_variables()
+model3.eggcount |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+  median_hdci()
 ``` 
 
-Got some warnings with this one. 
+## bayesplot 
 
-
-#### Model diagnositics (Poisson)
-
-```{r poi-diag-1}
-#--- distribution check ---#
-pp_check(model1.eggcount.re.poi, type = 'dens_overlay')
+```{r bayesplot-1}
+model3.eggcount |> mcmc_plot(type='intervals')
 ```
 
-```{r poi-diag-2}
-preds <- posterior_predict(model1.eggcount.re.poi, ndraws=250, summary=FALSE)
-model1.eggcount.re.poi.resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = na.omit(clutch_data2$EGG_COUNT), 
-                              fittedPredictedResponse = apply(preds, 2, mean), 
-                              integerResponse = 'student')
-plot(model1.eggcount.re.poi.resids) ; testDispersion(model1.eggcount.re.poi.resids)
-``` 
+## emmeans - pariwise 
 
-The distribution looks better, but the DHARMa checks do not look great. 
-
-### Negative binomial 
-
-```{r negb-re-fit-1, cache=TRUE}
-model1.eggcount.re.nbin <- brm(EGG_COUNT ~ REGION + cMALE_MASS + (1|MALE) + (1|POPULATION), 
-              family=negbinomial(),
-              data = clutch_data2, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.99))
-``` 
-
-#### Model diagnositics (Negative binomial)
-
-```{r negb-diag-1}
-#--- distribution check ---#
-pp_check(model1.eggcount.re.nbin, type = 'dens_overlay')
+```{r emmeans-pairwise}
+model3.eggcount |> emmeans(pairwise ~ REGION, type="response") |> summary()
 ```
 
-```{r negb-diag-2}
-preds <- posterior_predict(model1.eggcount.re.nbin, ndraws=250, summary=FALSE)
-model1.eggcount.re.nbin.resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = na.omit(clutch_data2$EGG_COUNT), 
-                              fittedPredictedResponse = apply(preds, 2, mean), 
-                              integerResponse = 'student')
-plot(model1.eggcount.re.nbin.resids) ; testDispersion(model1.eggcount.re.nbin.resids)
+## probabilities 
+```{r probabilities}
+#model2.eggcount |> emmeans(~ REGION | DEV_TEMP, at = list(DEV_TEMP = 31.5, length.out = 10)) |> pairs(type = 'response')
+mtsqst <- model3.eggcount |> emmeans(pairwise ~ REGION*DEV_TEMP)
+mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
+mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 ```
 
-This is definetely not better than the poi. 
+# {-}
 
-### Gamma
+# summary figure 
 
-```{r gamma-re-fit-1, cache=TRUE}
-model1.eggcount.re.gamm <- brm(EGG_COUNT ~ REGION + cMALE_MASS + (1|MALE) + (1|POPULATION), 
-              family=Gamma(link="log"),
-              data = clutch_data2, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.99))
-``` 
+```{r summary-figure-1, warning=FALSE, message=FALSE}
+var <- get_variables(model3.eggcount); var
+var1 <- get_variables(model3.eggcount)[c(1:2)] ; var1 
 
-#### Model diagnositics (Gamma)
+int_draws_spread <- model3.eggcount |> spread_draws(!!!syms(var1)) 
 
-```{r gamma-diag-1}
-#--- distribution check ---#
-pp_check(model1.eggcount.re.gamm, type = 'dens_overlay')
+int_draws_spread2 <- int_draws_spread |> 
+  gather_draws(b_Intercept, b_REGIONleading) |> 
+  left_join(int_draws_spread, by = c(".chain",".iteration",".draw"))
+
+
+int_draws <- int_draws_spread2 |> 
+  mutate(RCore = case_when(`.variable` == 'b_Intercept' ~ 
+                             `.value`, 
+                           `.variable` != 'b_Intercept' ~ 
+                             `.value` + b_Intercept), 
+         
+         RLeading = case_when(`.variable` == 'b_Intercept' ~ 
+                           `.value` + b_REGIONleading, 
+                         `.variable` == 'b_REGIONleading' ~ 
+                           `.value` + b_Intercept + `b_REGIONleading`))
+
+int_draws_plotting <- int_draws |> 
+  pivot_longer(cols = starts_with("R"), 
+               names_to = "REGION", 
+               values_to = "EGG_COUNT") |> 
+  transmute(LATITUDE = case_when(`.variable` == "b_Intercept" ~ "Low latitude", 
+                                 `.variable` == "b_REGIONleading" ~ "High latitude"),
+            EGG_COUNT = EGG_COUNT, 
+            LATITUDE_B = LATITUDE,
+            chain = `.chain`, 
+            iteration = `.iteration`, 
+            draw_n = `.draw`) |> 
+  mutate(rEGG_COUNT = exp(EGG_COUNT))
+
+eggcount.plot <- int_draws_plotting |> 
+  ggplot(aes(x=LATITUDE, y=rEGG_COUNT)) + 
+  #geom_hline(yintercept = 0, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
+  stat_halfeye(aes(fill = LATITUDE, fill_ramp = after_stat(level)), 
+               point_interval = mode_hdci, 
+               .width = c(.66, .90, .95)) + 
+  scale_fill_ramp_discrete(na.translate=FALSE, 
+                           labels =c("0.95","0.90","0.66"), 
+                           name = "Credible interval") +
+  scale_fill_manual(values = c("lightskyblue","coral"))+ 
+  #scale_y_continuous(limits=c(0,2), breaks = seq(0,2, .5))+
+  ylab("EGG COUNT") + xlab("EXPERIMENTAL GROUP") +
+  scale_x_discrete(labels = c("Low latitude" = paste0("Low latitude"), 
+                              "High latitude" = paste0("High latitude"))) +
+  #annotate("text", x=6.8,y=1.4, label = paste0(round(mean(growth3$MASS), 2)," (mm)"), color="grey58") +
+  coord_flip() + 
+  theme_classic() + 
+  guides(fill = "none") + 
+  theme(legend.position = c(.15,.86), 
+        axis.title.y = element_text(margin = margin(r =0.3, unit = "in"), size = 12), 
+        axis.title.x = element_text(margin = margin(t = 0.3, unit="in"), size =12), 
+        legend.key = element_rect(color="black", size=1.25), 
+        legend.background = element_rect(fill = alpha("blue", 0))); eggcount.plot
 ```
 
-```{r gamma-diag-2}
-preds <- posterior_predict(model1.eggcount.re.gamm, ndraws=250, summary=FALSE)
-model1.eggcount.re.gamm.resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = na.omit(clutch_data2$EGG_COUNT), 
-                              fittedPredictedResponse = apply(preds, 2, mean), 
-                              integerResponse = 'student')
-plot(model1.eggcount.re.gamm.resids) ; testDispersion(model1.eggcount.re.gamm.resids)
-```
 
-## {-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # Hatching success 
 
