@@ -826,7 +826,7 @@ model1.geo.gamma <- brm(model1.geo.gamma.formula,
               thin = 5, 
               control = list(adapt_delta=0.9))  
 summary(model1.geo.gamma)
-
+saveRDS(model1.geo.gamma, file="./02.mass_data_analysis_files/model1.geo.gamma.RDS")
 ```
 
 
@@ -970,7 +970,7 @@ mass.plot <- int_draws_plotting |>
                            labels =c("0.95","0.90","0.66"), 
                            name = "Credible interval") +
   scale_fill_manual(values = c("lightskyblue" ,"dodgerblue2", "dodgerblue4","coral", "red2","firebrick4"))+ 
-  #scale_y_continuous(limits=c(-0.5,0.5), breaks = seq(-0.5,0.5, .1))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, .5))+
   ylab("CENTERED MASS (g)") + xlab("EXPERIMENTAL GROUP") +
   scale_x_discrete(labels = c("Low latitude_DEV_TEMP_28.5" = paste0("Low latitude 28.5","\u00B0","C"), 
                               "Low latitude_DEV_TEMP_30" = paste0("Low latitude 30","\u00B0","C"),
@@ -987,4 +987,9 @@ mass.plot <- int_draws_plotting |>
         axis.title.x = element_text(margin = margin(t = 0.3, unit="in"), size =12), 
         legend.key = element_rect(color="black", size=1.25), 
         legend.background = element_rect(fill = alpha("blue", 0))); mass.plot
+```
+
+```{r eval=FALSE, echo=TRUE}
+ggsave(file="./figures/mass.plot.svg",  plot=mass.plot, width=8, height=5, units = "in", dpi=300) 
+ggsave(file="./figures/mass.plot.pdf",  plot=mass.plot, width=8, height=5, units = "in", dpi=300)
 ```
