@@ -170,6 +170,19 @@ eda.fig <- ggarrange(eda1,eda2,eda3,eda4,eda5,eda6,
           ncol=1); eda.fig
 ```
 
+# Fit model [random factors]
+
+First we will place random factors only within out model and see if they do a good job explaining the variance within our model. We will also be include piors which will be based off of out length data.
+
+## Prior investigation 
+```{r }
+lat_resp_dat2 |> 
+  group_by(REGION,DEV_TEMP) |> 
+  summarise(mean(na.omit(MASS)), 
+            sd(na.omit(MASS))) 
+
+``` 
+
 # Model fit {.tabset}
 
 Great lets start to fit our models. There are number of variables within our data frame some of which may or may not be important. To investigate which variables are important and which are not will test different hypotheses that use different combinations of variables that are suited to answer reasonable hypotheses. 
