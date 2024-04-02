@@ -349,6 +349,7 @@ eda2 <- ggarrange(p1.wo,p2.wo,p3.wo,p4.wo,p5.wo,
 
 # Fit model [random factors]
 
+
 First we will place random factors only within out model and see if they do a good job explaining the variance within our model. We will also be include piors which will be based off of out length data.
 
 ## Prior investigation 
@@ -361,7 +362,7 @@ growth3 |>
 ```
 
 ## Priors 
-```{r priors-2}
+```{r priors-1}
 model.re.formula <- bf(LENGTH ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE))
 get_prior(model.re.formula, data=growth3)
 growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +  
@@ -394,6 +395,119 @@ stan_rhat(model.re$fit)
 stan_ess(model.re$fit)
 stan_dens(model.re$fit, separate_chains = TRUE)
 ```
+
+## Priors 
+```{r priors-2}
+model.re0.2.formula <- bf(LENGTH ~ 1 + (1|TANK) + (1|FEMALE))
+get_prior(model.re.formula, data=growth3)
+growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +  
+  prior(student_t(3, 0, 4.4), class = "sigma")
+```
+
+## Model 0.2- random factors
+```{r fit-model-1, cache=TRUE} 
+model.re0.2 <- brm(model.re0.2.formula,
+              data = growth3, 
+              prior = growth.priors,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model.re0.2) 
+saveRDS(model.re, file="./01.growth_data_analysis_files/model.re0.2.length.RDS")
+```
+
+## model validation [random factors]
+```{r model-diag-1}
+stan_trace(model.re0.2 $fit)
+stan_ac(model.re0.2 $fit) 
+stan_rhat(model.re0.2 $fit) 
+stan_ess(model.re0.2 $fit)
+stan_dens(model.re0.2 $fit, separate_chains = TRUE)
+```
+
+## Priors 
+```{r priors-2}
+model.re0.formula <- bf(LENGTH ~ 1 + (1|TANK) + (1|FEMALE) + (1|POPULATION))
+get_prior(model.re.formula, data=growth3)
+growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +  
+  prior(student_t(3, 0, 4.4), class = "sigma")
+```
+
+## Model 0- random factors
+```{r fit-model-1, cache=TRUE} 
+model.re0 <- brm(model.re0.formula,
+              data = growth3, 
+              prior = growth.priors,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model.re0) 
+saveRDS(model.re, file="./01.growth_data_analysis_files/model.re0.length.RDS")
+```
+
+## model validation [random factors]
+```{r model-diag-1}
+stan_trace(model.re0$fit)
+stan_ac(model.re0$fit) 
+stan_rhat(model.re0$fit) 
+stan_ess(model.re0$fit)
+stan_dens(model.re0$fit, separate_chains = TRUE)
+```
+
+## Priors 
+```{r priors-2}
+model.re2.formula <- bf(LENGTH ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER))
+get_prior(model.re.formula, data=growth3)
+growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +  
+  prior(student_t(3, 0, 4.4), class = "sigma")
+```
+
+## Model 2 - random factors
+```{r fit-model-1, cache=TRUE} 
+model.re2 <- brm(model.re2.formula,
+              data = growth3, 
+              prior = growth.priors,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model.re2) 
+saveRDS(model.re, file="./01.growth_data_analysis_files/model.re2.length.RDS")
+```
+
+## model validation [random factors]
+```{r model-diag-1}
+stan_trace(model.re2$fit)
+stan_ac(model.re2$fit) 
+stan_rhat(model.re2$fit) 
+stan_ess(model.re2$fit)
+stan_dens(model.re2$fit, separate_chains = TRUE)
+```
+
+### LOO
+```{r model-comparisons-2}
+LOO(model.re0,model.re, model.re2,model.re0.2) 
+```
+First we will place random factors only within out model and see if they do a good job explaining the variance within our model. We will also be include piors which will be based off of out length data.
+
+
 
 Model seems to perform well enough. There is one or two bars below the effective sample size cut off. But this will likely get smoothed out with more iterations and chains. Also it is very few samples. Lets start adding fixed factors. 
 
