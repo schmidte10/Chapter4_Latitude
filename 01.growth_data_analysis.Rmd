@@ -362,7 +362,7 @@ growth3 |>
 ```
 
 ## Priors 
-```{r priors-1}
+```{r priors-re}
 model.re.formula <- bf(LENGTH ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE))
 get_prior(model.re.formula, data=growth3)
 growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +  
@@ -370,7 +370,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
 ```
 
 ## random factors
-```{r fit-model-1, cache=TRUE} 
+```{r fit-model-re, cache=TRUE} 
 
 model.re <- brm(model.re.formula,
               data = growth3, 
@@ -388,7 +388,7 @@ prior_summary(model.re)
 saveRDS(model.re, file="./01.growth_data_analysis_files/model.re.length.RDS")
 ```
 ## model validation [random factors]
-```{r model-diag-1}
+```{r model-diag-re}
 stan_trace(model.re$fit)
 stan_ac(model.re$fit) 
 stan_rhat(model.re$fit) 
@@ -397,7 +397,7 @@ stan_dens(model.re$fit, separate_chains = TRUE)
 ```
 
 ## Priors 
-```{r priors-2}
+```{r priors-re0.2}
 model.re0.2.formula <- bf(LENGTH ~ 1 + (1|TANK) + (1|FEMALE))
 get_prior(model.re.formula, data=growth3)
 growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +  
@@ -405,7 +405,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
 ```
 
 ## Model 0.2- random factors
-```{r fit-model-1, cache=TRUE} 
+```{r fit-model-re0.2, cache=TRUE} 
 model.re0.2 <- brm(model.re0.2.formula,
               data = growth3, 
               prior = growth.priors,
@@ -423,7 +423,7 @@ saveRDS(model.re, file="./01.growth_data_analysis_files/model.re0.2.length.RDS")
 ```
 
 ## model validation [random factors]
-```{r model-diag-1}
+```{r model-diag-re0.2}
 stan_trace(model.re0.2 $fit)
 stan_ac(model.re0.2 $fit) 
 stan_rhat(model.re0.2 $fit) 
@@ -432,7 +432,7 @@ stan_dens(model.re0.2 $fit, separate_chains = TRUE)
 ```
 
 ## Priors 
-```{r priors-2}
+```{r priors-re0}
 model.re0.formula <- bf(LENGTH ~ 1 + (1|TANK) + (1|FEMALE) + (1|POPULATION))
 get_prior(model.re.formula, data=growth3)
 growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +  
@@ -440,7 +440,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
 ```
 
 ## Model 0- random factors
-```{r fit-model-1, cache=TRUE} 
+```{r fit-model-re0, cache=TRUE} 
 model.re0 <- brm(model.re0.formula,
               data = growth3, 
               prior = growth.priors,
@@ -458,7 +458,7 @@ saveRDS(model.re, file="./01.growth_data_analysis_files/model.re0.length.RDS")
 ```
 
 ## model validation [random factors]
-```{r model-diag-1}
+```{r model-diag-re0}
 stan_trace(model.re0$fit)
 stan_ac(model.re0$fit) 
 stan_rhat(model.re0$fit) 
@@ -467,7 +467,7 @@ stan_dens(model.re0$fit, separate_chains = TRUE)
 ```
 
 ## Priors 
-```{r priors-2}
+```{r priors-re2}
 model.re2.formula <- bf(LENGTH ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER))
 get_prior(model.re.formula, data=growth3)
 growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +  
@@ -475,7 +475,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
 ```
 
 ## Model 2 - random factors
-```{r fit-model-1, cache=TRUE} 
+```{r fit-model-re2, cache=TRUE} 
 model.re2 <- brm(model.re2.formula,
               data = growth3, 
               prior = growth.priors,
@@ -493,7 +493,7 @@ saveRDS(model.re, file="./01.growth_data_analysis_files/model.re2.length.RDS")
 ```
 
 ## model validation [random factors]
-```{r model-diag-1}
+```{r model-diag-re2}
 stan_trace(model.re2$fit)
 stan_ac(model.re2$fit) 
 stan_rhat(model.re2$fit) 
@@ -502,7 +502,7 @@ stan_dens(model.re2$fit, separate_chains = TRUE)
 ```
 
 ### LOO
-```{r model-comparisons-2}
+```{r model-comparisons-loo}
 LOO(model.re0,model.re, model.re2,model.re0.2) 
 ```
 First we will place random factors only within out model and see if they do a good job explaining the variance within our model. We will also be include piors which will be based off of out length data.
@@ -555,7 +555,7 @@ growth3 |>
 ## Basic model
 
 ### Priors 
-```{r priors-2}
+```{r priors-model1}
 model1.formula <- bf(LENGTH ~ DEV_TEMP*REGION + 
                       scale(FEMALE_STANDARD_LENGTH, center=TRUE, scale=TRUE) + 
                       scale(DENSITY, center=TRUE, scale=TRUE) + 
@@ -569,7 +569,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
 ```
 
 ### Basic model
-```{r fit-model-1, cache=TRUE} 
+```{r fit-model-model1, cache=TRUE} 
 model1 <- brm(model1.formula,
               data = growth3, 
               prior = growth.priors,
@@ -591,7 +591,7 @@ In this summary statistic table it tells us:
 
 ### stan plots
 
-```{r mcmc-diag-model1-2, fig.height=9}
+```{r mcmc-diag-model1, fig.height=9}
 stan_trace(model1$fit)
 stan_ac(model1$fit) 
 stan_rhat(model1$fit) 
@@ -602,7 +602,7 @@ stan_dens(model1$fit, separate_chains = TRUE)
 ## Maternal effects model 
 
 ### Priors 
-```{r priors-2}
+```{r priors-model.mat}
 model.mat.formula <- bf(LENGTH ~ DEV_TEMP*REGION + 
                       scale(FEMALE_STANDARD_LENGTH, center=TRUE, scale=TRUE) + 
                       scale(DENSITY, center=TRUE, scale=TRUE) + 
@@ -617,7 +617,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
   prior(student_t(3, 0, 4.4), class = "sigma")
 ```
 
-```{r fit-model-2, cache=TRUE}
+```{r fit-model.mat, cache=TRUE}
 model.mat <- brm(model.mat.formula,
               family=gaussian(),
               data = growth3, 
@@ -635,7 +635,7 @@ saveRDS(model.mat.formula, file="./01.growth_data_analysis_files/model.maternal.
 
 
 ### stan plots
-```{r mcmc-diag-model2-2, fig.height=9}
+```{r mcmc-diag-model.mat-2, fig.height=9}
 stan_trace(model.mat$fit)
 stan_ac(model.mat$fit) 
 stan_rhat(model.mat$fit) 
@@ -661,7 +661,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
   prior(student_t(3, 0, 4.4), class = "sigma")
 ```
 
-```{r fit-model-3, cache=TRUE}
+```{r fit-model-geo, cache=TRUE}
 model.geo <- brm(model.geo.formula,
               data = growth3, 
               warmup = 500, 
@@ -677,7 +677,7 @@ saveRDS(model.geo.formula, file="./01.growth_data_analysis_files/model.geographi
 ```
 
 ### stan plots
-```{r mcmc-diag-model3-2, fig.height=9}
+```{r mcmc-diag-modelgeo-2, fig.height=9}
 stan_trace(model.geo$fit)
 stan_ac(model.geo$fit) 
 stan_rhat(model.geo$fit) 
@@ -697,7 +697,7 @@ The **model.mat** model will not be included in the comparison because the addit
 
 
 ### LOO
-```{r model-comparisons-2}
+```{r model-comparisons-loo2}
 LOO(model1, model.geo) 
 ```
 
