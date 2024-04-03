@@ -347,12 +347,14 @@ eda2 <- ggarrange(p1.wo,p2.wo,p3.wo,p4.wo,p5.wo,
           nrow=3); eda2
 ```
 
-# Fit model [random factors]
+# Fit model [random factors] {.tabset}
 
 
 First we will place random factors only within out model and see if they do a good job explaining the variance within our model. We will also be include piors which will be based off of out length data.
 
-## Prior investigation 
+## Model-1 {.tabset}
+
+### Prior investigation 
 ```{r }
 growth3 |> 
   group_by(REGION,DEV_TEMP) |> 
@@ -361,7 +363,7 @@ growth3 |>
 
 ```
 
-## Priors 
+### Priors 
 ```{r priors-re}
 model.re.formula <- bf(LENGTH ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE))
 get_prior(model.re.formula, data=growth3)
@@ -369,7 +371,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
   prior(student_t(3, 0, 4.4), class = "sigma")
 ```
 
-## random factors
+### Model-1
 ```{r fit-model-re, cache=TRUE} 
 
 model.re <- brm(model.re.formula,
@@ -387,7 +389,7 @@ model.re <- brm(model.re.formula,
 prior_summary(model.re) 
 saveRDS(model.re, file="./01.growth_data_analysis_files/model.re.length.RDS")
 ```
-## model validation [random factors]
+### model validation [random factors]
 ```{r model-diag-re}
 stan_trace(model.re$fit)
 stan_ac(model.re$fit) 
@@ -396,7 +398,11 @@ stan_ess(model.re$fit)
 stan_dens(model.re$fit, separate_chains = TRUE)
 ```
 
-## Priors 
+### {-}
+
+## Model-2 {.tabset}
+
+### Priors 
 ```{r priors-re0.2}
 model.re0.2.formula <- bf(LENGTH ~ 1 + (1|TANK) + (1|FEMALE))
 get_prior(model.re.formula, data=growth3)
@@ -404,7 +410,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
   prior(student_t(3, 0, 4.4), class = "sigma")
 ```
 
-## Model 0.2- random factors
+### Model-2
 ```{r fit-model-re0.2, cache=TRUE} 
 model.re0.2 <- brm(model.re0.2.formula,
               data = growth3, 
@@ -422,7 +428,7 @@ prior_summary(model.re0.2)
 saveRDS(model.re, file="./01.growth_data_analysis_files/model.re0.2.length.RDS")
 ```
 
-## model validation [random factors]
+### model validation 
 ```{r model-diag-re0.2}
 stan_trace(model.re0.2 $fit)
 stan_ac(model.re0.2 $fit) 
@@ -430,8 +436,11 @@ stan_rhat(model.re0.2 $fit)
 stan_ess(model.re0.2 $fit)
 stan_dens(model.re0.2 $fit, separate_chains = TRUE)
 ```
+### {-} 
 
-## Priors 
+## Model-3 {.tabset}
+
+### Priors 
 ```{r priors-re0}
 model.re0.formula <- bf(LENGTH ~ 1 + (1|TANK) + (1|FEMALE) + (1|POPULATION))
 get_prior(model.re.formula, data=growth3)
@@ -439,7 +448,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
   prior(student_t(3, 0, 4.4), class = "sigma")
 ```
 
-## Model 0- random factors
+### Model 3
 ```{r fit-model-re0, cache=TRUE} 
 model.re0 <- brm(model.re0.formula,
               data = growth3, 
@@ -457,7 +466,7 @@ prior_summary(model.re0)
 saveRDS(model.re, file="./01.growth_data_analysis_files/model.re0.length.RDS")
 ```
 
-## model validation [random factors]
+### model validation 
 ```{r model-diag-re0}
 stan_trace(model.re0$fit)
 stan_ac(model.re0$fit) 
@@ -466,7 +475,11 @@ stan_ess(model.re0$fit)
 stan_dens(model.re0$fit, separate_chains = TRUE)
 ```
 
-## Priors 
+### {-}
+
+## Model-4
+
+### Priors 
 ```{r priors-re2}
 model.re2.formula <- bf(LENGTH ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER))
 get_prior(model.re.formula, data=growth3)
@@ -474,7 +487,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
   prior(student_t(3, 0, 4.4), class = "sigma")
 ```
 
-## Model 2 - random factors
+### Model-4 
 ```{r fit-model-re2, cache=TRUE} 
 model.re2 <- brm(model.re2.formula,
               data = growth3, 
@@ -492,7 +505,7 @@ prior_summary(model.re2)
 saveRDS(model.re, file="./01.growth_data_analysis_files/model.re2.length.RDS")
 ```
 
-## model validation [random factors]
+### model validation 
 ```{r model-diag-re2}
 stan_trace(model.re2$fit)
 stan_ac(model.re2$fit) 
@@ -501,10 +514,14 @@ stan_ess(model.re2$fit)
 stan_dens(model.re2$fit, separate_chains = TRUE)
 ```
 
-### LOO
+### {-}
+
+## LOO
 ```{r model-comparisons-loo}
 LOO(model.re0,model.re, model.re2,model.re0.2) 
 ```
+## {-}
+
 First we will place random factors only within out model and see if they do a good job explaining the variance within our model. We will also be include piors which will be based off of out length data.
 
 
@@ -552,7 +569,9 @@ growth3 |>
 
 ```
 
-## Basic model
+# Fit Models {.tabset}
+
+## Basic model {.tabset}
 
 ### Priors 
 ```{r priors-model1}
@@ -599,7 +618,9 @@ stan_ess(model1$fit)
 stan_dens(model1$fit, separate_chains = TRUE) 
 ```
 
-## Maternal effects model 
+### {-}
+
+## Maternal effects model {.tabset}
 
 ### Priors 
 ```{r priors-model.mat}
@@ -643,8 +664,9 @@ stan_ess(model.mat$fit)
 stan_dens(model.mat$fit, separate_chains = TRUE)
 ```
 
+### {-}
 
-## Geographic model 
+## Geographic model {.tabset}
 
 ### Priors 
 ```{r priors-geo}
@@ -685,6 +707,8 @@ stan_ess(model.geo$fit)
 stan_dens(model.geo$fit, separate_chains = TRUE)
 ```
 
+### {-}
+
 ## {-}
 
 # Model Comparisons 
@@ -693,16 +717,11 @@ All of our models performed relatively well. To determine which model we will us
 
 The **model.mat** model will not be included in the comparison because the additional covariates within the model did not seem to explain a suitable amount of varirance in the model, ALSO, because there were more _'NA's_ in the these added covariates the observation sizes within the models were different meaning the models cannot be compared against each other using standard model comparison tools. 
 
-## Comparison methods {.tabset}
-
-
-### LOO
+## LOO
 ```{r model-comparisons-loo2}
 LOO(model1, model.geo) 
 ```
 
-
-## {-}
 
 All model comparison methods indicate that **model1** outperforms **model.geo**. Therefore we will proceed with **model1** 
 
@@ -726,7 +745,7 @@ I'm hesitant to remove further outliers. The mass of samples that sit above the 
 
 In the case with large datasets visual checks provide additional insight to statistical tests, and in this case out visual analysis seems to point in the direction of our model being appropriate. 
 
-# Partial effects plots 
+# Partial effects plots {.tabset}
 
 ## conditional_effects 
 
@@ -779,7 +798,7 @@ model1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_
 ```{r probabilities}
 
 ```
-# {-}
+## {-}
 
 # summary figure 
 
