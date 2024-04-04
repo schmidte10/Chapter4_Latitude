@@ -860,6 +860,7 @@ model1.geo.gamma |>
 
 ```{r summary-100}
 summary(model1.geo.gamma)
+#car::Anova(model1.geo.gamma)
 ```
 
 ## R2 
