@@ -119,7 +119,9 @@ growth2 <- growth |>
                            TANK >= 200 & TANK <= 299 ~ 2,
                            TANK >= 300 & TANK <= 399 ~ 3,
                            TRUE ~ NA_real_))) |> 
-  mutate(TANK = as.factor(TANK))
+  mutate(TANK = as.factor(TANK)) 
+
+save(growth2, file ="./import_files/growth2.RData")
 ```
 
 In the code above a number of variables were centered because within these metrics the value **0** is meaningless. For example you cannot have a fish length or mass of 0. Therefore, the mean was subtracted for a given variable was subtracted by every value. The y-intercept for these values will therefore reflect the mean, and the slope can be interpreted as 'y increases/decreases x amount for every 1-unit increase from the mean [INSERT METRIC]'. 
