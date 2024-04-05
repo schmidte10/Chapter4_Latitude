@@ -892,7 +892,13 @@ model1.geo.gamma |> mcmc_plot(type='intervals')
 ## emmeans - pariwise 
 
 ```{r emmeans-pairwise}
-model1.geo.gamma |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
+model1.geo.gamma |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary(infer=TRUE)
+
+model1.geo.gamma |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> confint()
+
+model1.geo.gamma |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() 
+
+model1.geo.gamma |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> confint()
 ```
 
 ## probabilities 
@@ -972,7 +978,7 @@ mass.plot <- int_draws_plotting |>
                            name = "Credible interval") +
   scale_fill_manual(values = c("lightskyblue" ,"dodgerblue2", "dodgerblue4","coral", "red2","firebrick4"))+ 
   scale_y_continuous(limits=c(0,2), breaks = seq(0,2, .5))+
-  ylab("CENTERED MASS (g)") + xlab("EXPERIMENTAL GROUP") +
+  ylab("MASS (g)") + xlab("EXPERIMENTAL GROUP") +
   scale_x_discrete(labels = c("Low latitude_DEV_TEMP_28.5" = paste0("Low latitude 28.5","\u00B0","C"), 
                               "Low latitude_DEV_TEMP_30" = paste0("Low latitude 30","\u00B0","C"),
                               "Low latitude_DEV_TEMP_31.5" = paste0("Low latitude 31.5","\u00B0","C"), 
