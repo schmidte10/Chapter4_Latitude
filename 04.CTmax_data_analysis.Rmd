@@ -577,6 +577,8 @@ model2.ctmax |> mcmc_plot(type='intervals')
 
 ```{r emmeans-pairwise}
 model2.ctmax |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
+
+model2.ctmax |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> summary()
 ```
 
 ## probabilities 
