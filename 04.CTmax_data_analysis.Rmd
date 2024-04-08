@@ -577,6 +577,8 @@ model2.ctmax |> mcmc_plot(type='intervals')
 
 ```{r emmeans-pairwise}
 model2.ctmax |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
+
+model2.ctmax |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> summary()
 ```
 
 ## probabilities 
@@ -584,7 +586,10 @@ model2.ctmax |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by
 #model2.ctmax |> emmeans(~ REGION | DEV_TEMP, at = list(DEV_TEMP = 31.5, length.out = 10)) |> pairs(type = 'response')
 prob <- model2.ctmax |> emmeans(pairwise ~ REGION*DEV_TEMP)
 prob2 <- prob$contrasts |> gather_emmeans_draws()
-prob2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
+
+model2.ctmax.em <- emmeans(model2.ctmax, pairwise ~ REGION*DEV_TEMP)
+# will have a negative effect
+model2.ctmax.em$contrasts |> gather_emmeans_draws() %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value<0)/n())
 ```
 ## {-}
 
