@@ -526,7 +526,7 @@ model3.eggcount |> mcmc_plot(type='intervals')
 ## emmeans - pariwise 
 
 ```{r emmeans-pairwise}
-model3.eggcount |> emmeans(pairwise ~ REGION*MALE_MASS, type="response") |> summary()
+model3.eggcount |> emmeans(pairwise ~ REGION, type="response") |> summary()
 ```
 
 ## probabilities 
