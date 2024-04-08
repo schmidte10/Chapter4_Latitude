@@ -794,11 +794,17 @@ model1 |> mcmc_plot(type='intervals')
 
 ```{r emmeans-pairwise}
 model1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
+
+model1 |> emmeans(pairwise ~ DEV_TEMP, type="response") |> summary()
+
+model1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> summary()
 ```
 
 ## probabilities 
 ```{r probabilities}
-
+mtsqst <- model1 |> emmeans(pairwise ~ REGION*DEV_TEMP)
+mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
+mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 ```
 ## {-}
 
