@@ -367,15 +367,15 @@ growth3 |>
 ```
 
 ## Priors 
-```{r priors-2}
+```{r priors-re0.2}
 model.re0.2.formula <- bf(MASS ~ 1 + (1|TANK) + (1|FEMALE))
 get_prior(model.re0.2.formula, data=growth3)
 mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
   prior(student_t(3, 0, 0.53), class = "sigma")
 ```
 
-## Model 0.2- random factors
-```{r fit-model-1, cache=TRUE} 
+## Model re0.2- random factors
+```{r fit-model-re0.2, cache=TRUE} 
 model.re0.2 <- brm(model.re0.2.formula,
               data = growth3, 
               prior = mass.priors.re,
@@ -393,7 +393,7 @@ saveRDS(model.re0.2, file="./02.mass_data_analysis_files/model.randomfactors0.2.
 ```
 
 ## Priors 
-```{r priors-2}
+```{r priors-re0}
 model.re0.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|FEMALE))
 get_prior(model.re0.formula, data=growth3)
 mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
@@ -401,7 +401,7 @@ mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +
 ```
 
 ## Model 0- random factors
-```{r fit-model-1, cache=TRUE} 
+```{r fit-model-re0, cache=TRUE} 
 model.re0 <- brm(model.re0.formula,
               data = growth3, 
               prior = mass.priors.re,
@@ -419,7 +419,7 @@ saveRDS(model.re0, file="./02.mass_data_analysis_files/model.randomfactors0.RDS"
 ```
 
 ## model validation [random factors]
-```{r model-diag-1}
+```{r model-diag-re0}
 stan_trace(model.re$fit)
 stan_ac(model.re$fit) 
 stan_rhat(model.re$fit) 
@@ -428,7 +428,7 @@ stan_dens(model.re$fit, separate_chains = TRUE)
 ```
 
 ## Priors 
-```{r priors-2}
+```{r priors-re2}
 model.re2.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER))
 get_prior(model.re.formula, data=growth3)
 mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
@@ -445,15 +445,15 @@ growth3 |>
 ```
 
 ## Priors 
-```{r priors-2}
+```{r priors-re}
 model.re.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE))
 get_prior(model.re.formula, data=growth3)
 mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
   prior(student_t(3, 0, 0.53), class = "sigma")
 ```
 
-## Model 1- random factors
-```{r fit-model-1, cache=TRUE} 
+## Model re- random factors
+```{r fit-model-re, cache=TRUE} 
 model.re <- brm(model.re.formula,
               data = growth3, 
               prior = mass.priors.re,
@@ -471,7 +471,7 @@ saveRDS(model.re, file="./02.mass_data_analysis_files/model.randomfactors.RDS")
 ```
 
 ## model validation [random factors]
-```{r model-diag-1}
+```{r model-diag-re}
 stan_trace(model.re$fit)
 stan_ac(model.re$fit) 
 stan_rhat(model.re$fit) 
@@ -479,35 +479,8 @@ stan_ess(model.re$fit)
 stan_dens(model.re$fit, separate_chains = TRUE)
 ```
 
-## Priors 
-```{r priors-2}
-model.re2.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER))
-get_prior(model.re.formula, data=growth3)
-mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
-  prior(student_t(3, 0, 0.53), class = "sigma")
-```
-
-
-## Model 2 - random factors
-```{r fit-model-1, cache=TRUE} 
-model.re2 <- brm(model.re2.formula,
-              data = growth3, 
-              prior = mass.priors.re,
-              warmup = 500, 
-              iter = 5000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              sample_prior = "yes",
-              chains = 2, 
-              thin = 5, 
-              control = list(adapt_delta=0.95)) 
-prior_summary(model.re2) 
-saveRDS(model.re2, file="./02.mass_data_analysis_files/model.randomfactors2.RDS")
-```
-
 ## model validation [random factors]
-```{r model-diag-1}
+```{r model-diag-re2}
 stan_trace(model.re2$fit)
 stan_ac(model.re2$fit) 
 stan_rhat(model.re2$fit) 
@@ -575,7 +548,7 @@ model1.lm <- lm(MASS ~ 1 + DEV_TEMP+REGION +
 vif(model1.lm)
 ``` 
 ### Priors and formula
-```{r priors-2}
+```{r priors-model1}
 model1.formula <- bf(MASS ~ 1 + 
                          DEV_TEMP*REGION + 
                          scale(MALE_MASS, center=TRUE, scale=TRUE) + 
@@ -640,7 +613,7 @@ stan_dens(model1$fit, separate_chains = TRUE)
 ## Maternal effects model 
 
 ### Priors and formula
-```{r priors-2}
+```{r priors-mat}
 model1.mat <- bf(MASS ~ 1 + 
                          DEV_TEMP*REGION + 
                          scale(MALE_MASS, center=TRUE, scale=TRUE) + 
@@ -658,7 +631,7 @@ mass.priors <- prior(normal(1.13, 0.20), class="Intercept") +
   prior(student_t(3, 0, 0.53), class = "sigma")
 ```
 
-```{r fit-model-2, cache=TRUE}
+```{r fit-model-mat, cache=TRUE}
 model.mat <- brm(model1.mat,
               data = growth3, 
               warmup = 500, 
@@ -702,7 +675,7 @@ stan_dens(model.mat$fit, separate_chains = TRUE)
 ## Geographic model 
 
 ### Priors and formula
-```{r priors-2}
+```{r priors-geo}
 model1.geo.formula <- bf(MASS ~ 1 + 
                          DEV_TEMP*REGION + 
                          scale(MALE_MASS, center=TRUE, scale=TRUE) + 
@@ -772,7 +745,7 @@ The **model.mat** model will not be included in the comparison because the addit
 ## Comparison methods 
 
 ### LOO
-```{r model-comparisons-2}
+```{r model-comparisons-3}
 LOO(model1, model1.geo) 
 ```
 
