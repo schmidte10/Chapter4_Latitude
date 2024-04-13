@@ -522,9 +522,9 @@ stan_ess(model.re2$fit)
 stan_dens(model.re2$fit, separate_chains = TRUE)
 ```
 
-## {-}
+### {-}
 
-# {-}
+## {-}
 
 # LOO
 ```{r model-comparisons-2}
@@ -657,6 +657,7 @@ mass.priors <- prior(normal(1.13, 0.20), class="Intercept") +
   prior(student_t(3, 0, 0.53), class = "sigma")
 ```
 
+### Maternal model
 ```{r fit-model-mat, cache=TRUE}
 model.mat <- brm(model1.mat,
               data = growth3, 
@@ -667,7 +668,7 @@ model.mat <- brm(model1.mat,
               cores=2, 
               save_pars = save_pars(all=TRUE), 
               sample_prior = "yes",
-              chains = 4, 
+              chains = 2, 
               thin = 5, 
               control = list(adapt_delta=0.95)) 
 prior_summary(model.mat) 
@@ -780,7 +781,7 @@ model1.geo.gamma.formula <- bf(MASS ~ 1 +
                          scale(LENGTH, center=TRUE, scale=TRUE) + 
                          scale(FEMALE_LAT, center=TRUE, scale=TRUE) +  
                          (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE), 
-                         family=Gamma(link="log"))
+                         family=Gamma())
 get_prior(model1.geo.formula, data=growth3)
 geo.gamma.priors <- prior(normal(1.13, 0.20), class="Intercept") +  
   prior(normal(0, 0.25), class="b")
@@ -804,6 +805,14 @@ summary(model1.geo.gamma)
 saveRDS(model1.geo.gamma, file="./02.mass_data_analysis_files/model1.geo.gamma.RDS")
 ```
 
+## stan plots
+```{r mcmc-diag-geo-gamma, fig.height=9}
+stan_trace(model1.geo.gamma$fit)
+stan_ac(model1.geo.gamma$fit) 
+stan_rhat(model1.geo.gamma$fit) 
+stan_ess(model1.geo.gamma$fit)
+stan_dens(model1.geo.gamma$fit, separate_chains = TRUE)
+```
 
 # Model validation
 
