@@ -754,7 +754,7 @@ LOO(model1, model1.geo)
 
 ```{r model1.mass}
 #--- distribution check ---#
-pp_check(model1.geo, type = 'dens_overlay')
+pp_check(model1.mat, type = 'dens_overlay')
 
 #--- DHARMa checks ---#
 preds <- posterior_predict(model1.geo, ndraws=250, summary=FALSE)
@@ -782,7 +782,7 @@ model1.geo.gamma.formula <- bf(MASS ~ 1 +
                          scale(FEMALE_LAT, center=TRUE, scale=TRUE) +  
                          (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE), 
                          family=Gamma())
-get_prior(model1.geo.formula, data=growth3)
+get_prior(model1.geo.gamma.formula, data=growth3)
 geo.gamma.priors <- prior(normal(1.13, 0.20), class="Intercept") +  
   prior(normal(0, 0.25), class="b")
 ```
@@ -825,7 +825,7 @@ preds <- posterior_predict(model1.geo.gamma, ndraws=250, summary=FALSE)
 model1.geo.resids <- createDHARMa(simulatedResponse = t(preds), 
                               observedResponse = growth3$MASS, 
                               fittedPredictedResponse = apply(preds, 2, mean), 
-                              integerResponse = 'normal')
+                              integerResponse = 'gamma')
 plot(model1.geo.resids) ; testDispersion(model1.geo.resids)
 ```
 
