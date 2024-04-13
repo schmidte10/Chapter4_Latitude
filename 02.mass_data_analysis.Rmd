@@ -39,6 +39,7 @@ library(tidybayes) # partial plots
 library(broom.mixed) # model investigation
 library(emmeans) # pairwise comparisons
 library(rstanarm) # pairwise comparisons - need for emmeans
+library(car) # for vif
 ```
 
 # Set working directory 
@@ -353,7 +354,7 @@ eda2 <- ggarrange(p1.wo,p2.wo,p3.wo,p4.wo,p5.wo,
 ```
 
 
-# Fit model [random factors]
+# Fit model [random factors] {.tabset}
 
 First we will place random factors only within out model and see if they do a good job explaining the variance within our model. We will also be include piors which will be based off of out length data.
 
@@ -366,7 +367,9 @@ growth3 |>
 
 ```
 
-## Priors 
+## Model.re02 {.tabset}
+
+### Priors 
 ```{r priors-re0.2}
 model.re0.2.formula <- bf(MASS ~ 1 + (1|TANK) + (1|FEMALE))
 get_prior(model.re0.2.formula, data=growth3)
@@ -374,7 +377,7 @@ mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +
   prior(student_t(3, 0, 0.53), class = "sigma")
 ```
 
-## Model re0.2- random factors
+### Model re0.2
 ```{r fit-model-re0.2, cache=TRUE} 
 model.re0.2 <- brm(model.re0.2.formula,
               data = growth3, 
@@ -392,7 +395,20 @@ prior_summary(model.re0.2)
 saveRDS(model.re0.2, file="./02.mass_data_analysis_files/model.randomfactors0.2.RDS")
 ```
 
-## Priors 
+### model validation 
+```{r model-diag-re0.2}
+stan_trace(model.re0.2$fit)
+stan_ac(model.re0.2$fit) 
+stan_rhat(model.re0.2$fit) 
+stan_ess(model.re0.2$fit)
+stan_dens(model.re0.2$fit, separate_chains = TRUE)
+```
+
+## {-}
+
+## Model.re0 {.tabset}
+
+### Priors 
 ```{r priors-re0}
 model.re0.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|FEMALE))
 get_prior(model.re0.formula, data=growth3)
@@ -400,7 +416,7 @@ mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +
   prior(student_t(3, 0, 0.53), class = "sigma")
 ```
 
-## Model 0- random factors
+### Model re0
 ```{r fit-model-re0, cache=TRUE} 
 model.re0 <- brm(model.re0.formula,
               data = growth3, 
@@ -418,33 +434,20 @@ prior_summary(model.re0)
 saveRDS(model.re0, file="./02.mass_data_analysis_files/model.randomfactors0.RDS")
 ```
 
-## model validation [random factors]
+### model validation [random factors]
 ```{r model-diag-re0}
-stan_trace(model.re$fit)
-stan_ac(model.re$fit) 
-stan_rhat(model.re$fit) 
-stan_ess(model.re$fit)
-stan_dens(model.re$fit, separate_chains = TRUE)
+stan_trace(model.re0$fit)
+stan_ac(model.re0$fit) 
+stan_rhat(model.re0$fit) 
+stan_ess(model.re0$fit)
+stan_dens(model.re0$fit, separate_chains = TRUE)
 ```
 
-## Priors 
-```{r priors-re2}
-model.re2.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER))
-get_prior(model.re.formula, data=growth3)
-mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
-  prior(student_t(3, 0, 0.53), class = "sigma")
-```
+## {-}
 
-## Prior investigation 
-```{r }
-growth3 |> 
-  group_by(REGION,DEV_TEMP) |> 
-  summarise(mean(na.omit(MASS)), 
-            sd(na.omit(MASS))) 
+## Model.re {.tabset}
 
-```
-
-## Priors 
+### Priors 
 ```{r priors-re}
 model.re.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE))
 get_prior(model.re.formula, data=growth3)
@@ -452,7 +455,7 @@ mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +
   prior(student_t(3, 0, 0.53), class = "sigma")
 ```
 
-## Model re- random factors
+### Model re- random factors
 ```{r fit-model-re, cache=TRUE} 
 model.re <- brm(model.re.formula,
               data = growth3, 
@@ -470,7 +473,7 @@ prior_summary(model.re)
 saveRDS(model.re, file="./02.mass_data_analysis_files/model.randomfactors.RDS")
 ```
 
-## model validation [random factors]
+### model validation [random factors]
 ```{r model-diag-re}
 stan_trace(model.re$fit)
 stan_ac(model.re$fit) 
@@ -479,7 +482,38 @@ stan_ess(model.re$fit)
 stan_dens(model.re$fit, separate_chains = TRUE)
 ```
 
-## model validation [random factors]
+## {-}
+
+## Model.re2 {.tabset}
+
+### Priors 
+```{r priors-re2}
+model.re2.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER))
+get_prior(model.re.formula, data=growth3)
+mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(student_t(3, 0, 0.53), class = "sigma")
+```
+
+### Model re2- random factors
+```{r fit-model-re2, cache=TRUE} 
+model.re2 <- brm(model.re2.formula,
+              data = growth3, 
+              prior = mass.priors.re,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model.re2) 
+saveRDS(model.re2, file="./02.mass_data_analysis_files/model.randomfactorsre2.RDS")
+```
+
+
+### model validation [random factors]
 ```{r model-diag-re2}
 stan_trace(model.re2$fit)
 stan_ac(model.re2$fit) 
@@ -488,7 +522,11 @@ stan_ess(model.re2$fit)
 stan_dens(model.re2$fit, separate_chains = TRUE)
 ```
 
-### LOO
+## {-}
+
+# {-}
+
+# LOO
 ```{r model-comparisons-2}
 LOO(model.re0,model.re, model.re2,model.re0.2) 
 ```
@@ -527,7 +565,7 @@ Once these models are run will be investigate their summary statistics to determ
 
 Also because we are doing Bayesian modelling we will be listing priors. Our length data is normally distributed as shown in some of the exploratory data analysis plots. We can confirm this assumption during the model validation stage as well. Out starting priors will be uninformative priors with distribution of gaussian(0,1), this may or may not change as we progress. 
 
-## Basic model
+## Basic model {.tabset}
 
 ### Prior investigation 
 ```{r }
@@ -547,6 +585,11 @@ model1.lm <- lm(MASS ~ 1 + DEV_TEMP+REGION +
                 data = growth3)
 vif(model1.lm)
 ``` 
+
+## {-}
+
+## Model1 {.tabset}
+
 ### Priors and formula
 ```{r priors-model1}
 model1.formula <- bf(MASS ~ 1 + 
@@ -563,7 +606,7 @@ mass.priors <- prior(normal(1.13, 0.20), class="Intercept") +
   prior(student_t(3, 0, 0.53), class = "sigma")
 ```
 
-### Model 
+### Model1 
 ```{r fit-model-1, cache=TRUE}
 model1 <- brm(model1.formula,
               data = growth3, 
@@ -581,20 +624,8 @@ prior_summary(model1)
 saveRDS(model1, file="./02.mass_data_analysis_files/model1.mass.RDS")
 ```
 
-### MCMC sampling diagnostics {.tabset} 
+### MCMC sampling diagnostics 
 
-#### bayesplot 
-
-```{r mcmc-diag-model1-1, fig.height=9}
-mcmc_plot(model1, type='combo')
-mcmc_plot(model1, type='trace') 
-mcmc_plot(model1, type='dens_overlay') 
-mcmc_plot(model1, type='acf_bar')
-mcmc_plot(model1, type='rhat_hist')
-mcmc_plot(model1, type='neff_hist') 
-```
-
-#### stan plots
 ```{r mcmc-diag-model1-2, fig.height=9}
 stan_trace(model1$fit)
 stan_ac(model1$fit) 
@@ -603,14 +634,9 @@ stan_ess(model1$fit)
 stan_dens(model1$fit, separate_chains = TRUE)
 ```
 
-#### Prior fits 
-```{r}
-#cmp <- list("Prior" = avg_comparisons(model1))
-```
+## {-}  
 
-#### {-}  
-
-## Maternal effects model 
+## Maternal effects model {.tabset}
 
 ### Priors and formula
 ```{r priors-mat}
@@ -648,20 +674,7 @@ prior_summary(model.mat)
 saveRDS(model.mat, file="./02.mass_data_analysis_files/model1.maternal.RDS")
 ```
 
-### MCMC sampling diagnostics {.tabset} 
-
-#### bayesplot 
-
-```{r mcmc-diag-model2-1, fig.height=9}
-mcmc_plot(model.mat, type='combo')
-mcmc_plot(model.mat, type='trace') 
-mcmc_plot(model.mat, type='dens_overlay') 
-mcmc_plot(model.mat, type='acf_bar')
-mcmc_plot(model.mat, type='rhat_hist')
-mcmc_plot(model.mat, type='neff_hist') 
-```
-
-#### stan plots
+### stan plots
 ```{r mcmc-diag-model2-2, fig.height=9}
 stan_trace(model.mat$fit)
 stan_ac(model.mat$fit) 
@@ -670,9 +683,9 @@ stan_ess(model.mat$fit)
 stan_dens(model.mat$fit, separate_chains = TRUE)
 ```
 
-### {-}
+## {-}
 
-## Geographic model 
+## Geographic model {.tabset}
 
 ### Priors and formula
 ```{r priors-geo}
@@ -691,6 +704,8 @@ mass.priors <- prior(normal(1.13, 0.20), class="Intercept") +
   prior(student_t(3, 0, 0.53), class = "sigma")
 ```
 
+### model1.geo
+
 ```{r fit-model-3, cache=TRUE}
 model1.geo <- brm(model1.geo.formula,
               data = growth3, 
@@ -708,21 +723,7 @@ prior_summary(model1.geo)
 saveRDS(model.mat, file="./02.mass_data_analysis_files/model1.geographic.RDS")
 ```
 
-
-### MCMC sampling diagnostics {.tabset} 
-
-#### bayesplot 
-
-```{r mcmc-diag-model3-1, fig.height=9}
-mcmc_plot(model1.geo, type='combo')
-mcmc_plot(model1.geo, type='trace') 
-mcmc_plot(model1.geo, type='dens_overlay') 
-mcmc_plot(model1.geo, type='acf_bar')
-mcmc_plot(model1.geo, type='rhat_hist')
-mcmc_plot(model1.geo, type='neff_hist') 
-```
-
-#### stan plots
+### stan plots
 ```{r mcmc-diag-model3-2, fig.height=9}
 stan_trace(model1.geo$fit)
 stan_ac(model1.geo$fit) 
@@ -734,7 +735,9 @@ hypothesis(model1.geo,hypothesis ="DEV_TEMP31.5 < DEV_TEMP30")
 plot(hypothesis(model1.geo, "DEV_TEMP30:REGIONleading<REGIONleading"))
 ```
 
-### {-}
+## {-}
+
+# {-}
 
 # Model Comparisons 
 
@@ -742,9 +745,6 @@ All of our models performed relatively well. To determine which model we will us
 
 The **model.mat** model will not be included in the comparison because the additional covariates within the model did not seem to explain a suitable amount of varirance in the model, ALSO, because there were more _'NA's_ in the these added covariates the observation sizes within the models were different meaning the models cannot be compared against each other using standard model comparison tools. 
 
-## Comparison methods 
-
-### LOO
 ```{r model-comparisons-3}
 LOO(model1, model1.geo) 
 ```
@@ -770,8 +770,8 @@ There are issues with this model lets fit it using a Gamma distribution.
 **Note:** The Gamma distribution will have a default log link function. 
 # Model fit
 
-### Priors and formula
-```{r priors-2}
+## Priors and formula
+```{r priors-geo.gamma}
 model1.geo.gamma.formula <- bf(MASS ~ 1 + 
                          DEV_TEMP*REGION + 
                          scale(MALE_MASS, center=TRUE, scale=TRUE) + 
@@ -786,7 +786,9 @@ geo.gamma.priors <- prior(normal(1.13, 0.20), class="Intercept") +
   prior(normal(0, 0.25), class="b")
 ```
 
-```{r random-factors-1, cache=TRUE}
+## Model1.geo.gamma
+
+```{r model1.geo.gamma, cache=TRUE}
 model1.geo.gamma <- brm(model1.geo.gamma.formula,
               data = growth3, 
               prior = geo.gamma.priors,
@@ -805,7 +807,7 @@ saveRDS(model1.geo.gamma, file="./02.mass_data_analysis_files/model1.geo.gamma.R
 
 # Model validation
 
-```{r model1.mass}
+```{r model-diag-model1.geo.gamma}
 #--- distribution check ---#
 pp_check(model1.geo.gamma, type = 'dens_overlay')
 
