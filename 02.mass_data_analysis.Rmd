@@ -39,6 +39,7 @@ library(tidybayes) # partial plots
 library(broom.mixed) # model investigation
 library(emmeans) # pairwise comparisons
 library(rstanarm) # pairwise comparisons - need for emmeans
+library(car) # for vif
 ```
 
 # Set working directory 
@@ -54,7 +55,7 @@ knitr::opts_knit$set(root.dir=working.dir)
 # Import data 
 
 ```{r import-data-1, message=FALSE}
-growth <- read_delim("../import_files/growth_data.txt", 
+growth <- read_delim("./import_files/growth_data.txt", 
     delim = "\t", escape_double = FALSE, 
     col_types = cols(NOTES = col_skip(), 
         ...16 = col_skip(), ...17 = col_skip()), 
@@ -261,9 +262,278 @@ ggarrange(male.mass.plot, female.mass.plot, male.length.plot, female.length.plot
           ncol=2, 
           nrow=2)
 ```
-# {-} 
+# {-}  
 
-# Fit model 
+# Removal of outliers
+
+There seems to be three areas that standout as potentially possessing outliers: 
+
+1. The single individual that is >4 grams. This individual is more than double the size of the average individual. 
+2. The cluster of individuals between 1 and 2grams that are below ~25 mm. Also there is no observable trend in this points (i.e., they are not all form the same developmental temperature, clutch, or population, which could have explained why they performed differently). 
+3. Individuals that are floating above the main cluster. These could be individuals that grew rapidly and outcompeted diblings in their tank, or perhaps their tank had low density to begin with.  
+
+Individuals identified in numbered points one and two are not unexpected. These data points will be double check to ensure they were entered correctly, if so they will be removed from the data set. 
+
+It looks like there are some issues with the model. Mainly around the presence of outliers. Some of these outliers could be seen in our explanatory data analysis. Let's revisit our raw data to check and remove the presence of outliers. 
+
+
+```{r outlier-removal-2}
+growth3 <- growth2 |> 
+  filter(MASS < 4, na.rm=TRUE, 
+         FULTONK < 0.079, 
+         FULTONK > 0.01, 
+         DENSITY > 3)  
+```
+
+
+
+note this also removes NA's therefore the difference in data frames is 21 row: 
+
+* 1 datum point with MASS greater than 4  
+* 1 datum point with high value (removed via FULTONK being less than 0.01) 
+* 2 data points where the tank density was 2
+* 9 data points with low values (removed via FULTONK being greater than 0.079)
+* 8 NA's removed 
+* **Total: 21** 
+
+Now Let's look at out plots again 
+
+```{r outlier-removal-4,  warning=FALSE, message=FALSE, echo=FALSE, fig.height=9, fig.width=9}
+p1.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("All points") +
+  theme_classic()
+
+p2.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=REGION)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) +  
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Latitude") +
+  theme_classic() + 
+  theme(legend.position = "none") 
+
+p3.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=POPULATION)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Population") +
+  theme_classic() +
+  theme(legend.position = "none")
+
+p4.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=CLUTCH_NUMBER)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) +  
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("CLUTCH_NUMBER") +
+  theme_classic() + 
+  theme(legend.position = "none") 
+
+p5.wo <- ggplot(growth3, aes(y=LENGTH, x=MASS, color=DEV_TEMP)) + 
+  geom_point(data = growth2, aes(y=LENGTH, x=MASS), 
+             shape = 8, color = "red") +
+  geom_point(alpha = 0.9, size = 3) +  
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Developmetnal temperature") +
+  theme_classic() + 
+  theme(legend.position = "none")
+
+eda2 <- ggarrange(p1.wo,p2.wo,p3.wo,p4.wo,p5.wo, 
+          ncol = 2, 
+          nrow=3); eda2
+```
+
+
+# Fit model [random factors] {.tabset}
+
+First we will place random factors only within out model and see if they do a good job explaining the variance within our model. We will also be include piors which will be based off of out length data.
+
+## Prior investigation 
+```{r }
+growth3 |> 
+  group_by(REGION,DEV_TEMP) |> 
+  summarise(mean(na.omit(MASS)), 
+            sd(na.omit(MASS))) 
+
+```
+
+## Model.re02 {.tabset}
+
+### Priors 
+```{r priors-re0.2}
+model.re0.2.formula <- bf(MASS ~ 1 + (1|TANK) + (1|FEMALE))
+get_prior(model.re0.2.formula, data=growth3)
+mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(student_t(3, 0, 0.53), class = "sigma")
+```
+
+### Model re0.2
+```{r fit-model-re0.2, cache=TRUE} 
+model.re0.2 <- brm(model.re0.2.formula,
+              data = growth3, 
+              prior = mass.priors.re,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model.re0.2) 
+saveRDS(model.re0.2, file="./02.mass_data_analysis_files/model.randomfactors0.2.RDS")
+```
+
+### model validation 
+```{r model-diag-re0.2}
+stan_trace(model.re0.2$fit)
+stan_ac(model.re0.2$fit) 
+stan_rhat(model.re0.2$fit) 
+stan_ess(model.re0.2$fit)
+stan_dens(model.re0.2$fit, separate_chains = TRUE)
+```
+
+## {-}
+
+## Model.re0 {.tabset}
+
+### Priors 
+```{r priors-re0}
+model.re0.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|FEMALE))
+get_prior(model.re0.formula, data=growth3)
+mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(student_t(3, 0, 0.53), class = "sigma")
+```
+
+### Model re0
+```{r fit-model-re0, cache=TRUE} 
+model.re0 <- brm(model.re0.formula,
+              data = growth3, 
+              prior = mass.priors.re,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model.re0) 
+saveRDS(model.re0, file="./02.mass_data_analysis_files/model.randomfactors0.RDS")
+```
+
+### model validation [random factors]
+```{r model-diag-re0}
+stan_trace(model.re0$fit)
+stan_ac(model.re0$fit) 
+stan_rhat(model.re0$fit) 
+stan_ess(model.re0$fit)
+stan_dens(model.re0$fit, separate_chains = TRUE)
+```
+
+## {-}
+
+## Model.re {.tabset}
+
+### Priors 
+```{r priors-re}
+model.re.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE))
+get_prior(model.re.formula, data=growth3)
+mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(student_t(3, 0, 0.53), class = "sigma")
+```
+
+### Model re- random factors
+```{r fit-model-re, cache=TRUE} 
+model.re <- brm(model.re.formula,
+              data = growth3, 
+              prior = mass.priors.re,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model.re) 
+saveRDS(model.re, file="./02.mass_data_analysis_files/model.randomfactors.RDS")
+```
+
+### model validation [random factors]
+```{r model-diag-re}
+stan_trace(model.re$fit)
+stan_ac(model.re$fit) 
+stan_rhat(model.re$fit) 
+stan_ess(model.re$fit)
+stan_dens(model.re$fit, separate_chains = TRUE)
+```
+
+## {-}
+
+## Model.re2 {.tabset}
+
+### Priors 
+```{r priors-re2}
+model.re2.formula <- bf(MASS ~ 1 + (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER))
+get_prior(model.re.formula, data=growth3)
+mass.priors.re <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(student_t(3, 0, 0.53), class = "sigma")
+```
+
+### Model re2- random factors
+```{r fit-model-re2, cache=TRUE} 
+model.re2 <- brm(model.re2.formula,
+              data = growth3, 
+              prior = mass.priors.re,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model.re2) 
+saveRDS(model.re2, file="./02.mass_data_analysis_files/model.randomfactorsre2.RDS")
+```
+
+
+### model validation [random factors]
+```{r model-diag-re2}
+stan_trace(model.re2$fit)
+stan_ac(model.re2$fit) 
+stan_rhat(model.re2$fit) 
+stan_ess(model.re2$fit)
+stan_dens(model.re2$fit, separate_chains = TRUE)
+```
+
+## {-}
+
+# {-}
+
+# LOO
+```{r model-comparisons-2}
+LOO(model.re0,model.re, model.re2,model.re0.2) 
+```
+
+CLUTCH_ORDER **does not** improve the model. Therefore it will not be used moving forward. 
+
+# Fit model {.tabset}
 
 Great lets start to fit our models. There are number of variables within our data frame some of which may or may not be important. To investigate which variables are important and which are not will test different hypotheses that use different combinations of variables that are suited to answer reasonable hypotheses.  
 
@@ -295,49 +565,67 @@ Once these models are run will be investigate their summary statistics to determ
 
 Also because we are doing Bayesian modelling we will be listing priors. Our length data is normally distributed as shown in some of the exploratory data analysis plots. We can confirm this assumption during the model validation stage as well. Out starting priors will be uninformative priors with distribution of gaussian(0,1), this may or may not change as we progress. 
 
-## Basic model
+## Basic model {.tabset}
+
+### Prior investigation 
+```{r }
+growth3 |> 
+  group_by(REGION,DEV_TEMP) |> 
+  summarise(mean(na.omit(MASS)), 
+            sd(na.omit(MASS))) 
+```
+
+### Collinearity 
+```{r }
+model1.lm <- lm(MASS ~ 1 + DEV_TEMP+REGION + 
+                         scale(MALE_MASS, center=TRUE, scale=TRUE) + 
+                         scale(DENSITY, center=TRUE, scale=TRUE) + 
+                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
+                         scale(LENGTH, center=TRUE, scale=TRUE), 
+                data = growth3)
+vif(model1.lm)
+``` 
+
+## {-}
+
+## Model1 {.tabset}
+
+### Priors and formula
+```{r priors-model1}
+model1.formula <- bf(MASS ~ 1 + 
+                         DEV_TEMP*REGION + 
+                         scale(MALE_MASS, center=TRUE, scale=TRUE) + 
+                         scale(DENSITY, center=TRUE, scale=TRUE) + 
+                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
+                         scale(LENGTH, center=TRUE, scale=TRUE) + 
+                         (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE), 
+                         family=gaussian())
+get_prior(model1.formula, data=growth3)
+mass.priors <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(normal(0, 0.25), class="b") +
+  prior(student_t(3, 0, 0.53), class = "sigma")
+```
+
+### Model1 
 ```{r fit-model-1, cache=TRUE}
-model1 <- brm(cMASS ~ DEV_TEMP*REGION + cFEMALE_MASS + cDENSITY + cAGE_DAYS + cLENGTH,
-              family=gaussian(),
-              data = growth2, 
-              warmup = 4000, 
-              iter = 10000,
+model1 <- brm(model1.formula,
+              data = growth3, 
+              prior = mass.priors,
+              warmup = 500, 
+              iter = 5000,
               seed=123, 
               cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5) 
+              save_pars = save_pars(all=TRUE), 
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
 prior_summary(model1) 
+saveRDS(model1, file="./02.mass_data_analysis_files/model1.mass.RDS")
 ```
 
-In this summary statistic table it tells us: 
+### MCMC sampling diagnostics 
 
-* for the intercept, it is using a student t(flatter normal) prior with a mean of -0.1 and a standard deviation of 2.5. These values are derived from the median and median absolute deviation of the response variable 
-
-
-```{r fit-model-1-3}
-standist::visualize("student_t(3,-0.1,2.5)", xlim=c(-5,5))
-standist::visualize("student_t(3,-0.1,2.5)", xlim=c(-5,5))
-```
-
-* for the beta coefficients, including **cDENSITY**, **cFEMALE_STANDARD_LENGTH**, **DEV_TEMP**, the default priors are inproper flat priors. 
-
-* The prior on sigma is also a student t with a mean of **0** and a standard deviation of **0.407** 
-
-### MCMC sampling diagnostics {.tabset} 
-
-#### bayesplot 
-
-```{r mcmc-diag-model1-1, fig.height=9}
-mcmc_plot(model1, type='combo')
-mcmc_plot(model1, type='trace') 
-mcmc_plot(model1, type='dens_overlay') 
-mcmc_plot(model1, type='acf_bar')
-mcmc_plot(model1, type='rhat_hist')
-mcmc_plot(model1, type='neff_hist') 
-```
-
-#### stan plots
 ```{r mcmc-diag-model1-2, fig.height=9}
 stan_trace(model1$fit)
 stan_ac(model1$fit) 
@@ -346,59 +634,47 @@ stan_ess(model1$fit)
 stan_dens(model1$fit, separate_chains = TRUE)
 ```
 
-### {-}  
+## {-}  
 
-### Summary 
+## Maternal effects model {.tabset}
 
-```{r summary-1}
-summary(model1)
+### Priors and formula
+```{r priors-mat}
+model1.mat <- bf(MASS ~ 1 + 
+                         DEV_TEMP*REGION + 
+                         scale(MALE_MASS, center=TRUE, scale=TRUE) + 
+                         scale(DENSITY, center=TRUE, scale=TRUE) + 
+                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
+                         scale(LENGTH, center=TRUE, scale=TRUE) + 
+                         scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE) + 
+                         scale(EGG_COUNT, center=TRUE, scale=TRUE) + 
+                         scale(HATCHING_SUCCESS, center=TRUE, scale=TRUE) + 
+                         (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE), 
+                         family=gaussian())
+get_prior(model1.formula, data=growth3)
+mass.priors <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(normal(0, 0.25), class="b") +
+  prior(student_t(3, 0, 0.53), class = "sigma")
 ```
-Within this model **cFEMALE_MASS**, and **cAGE_DAYS** have little influence on the model. 
 
-## Maternal effects model 
-
-```{r fit-model-2, cache=TRUE}
-model.mat <- brm(cMASS ~ DEV_TEMP*REGION + cFEMALE_MASS + cDENSITY + cAGE_DAYS + DAYS_IN_TREATMENT + EGG_COUNT + HATCHING_SUCCESS + CLUTCH_ORDER + cLENGTH,
-              family=gaussian(),
-              data = growth2, 
-              warmup = 4000, 
-              iter = 10000,
+```{r fit-model-mat, cache=TRUE}
+model.mat <- brm(model1.mat,
+              data = growth3, 
+              warmup = 500, 
+              prior = mass.priors,
+              iter = 5000,
               seed=123, 
               cores=2, 
-              save_pars = save_pars(all=TRUE),  
+              save_pars = save_pars(all=TRUE), 
+              sample_prior = "yes",
               chains = 4, 
               thin = 5, 
-              refresh = 0) 
+              control = list(adapt_delta=0.95)) 
 prior_summary(model.mat) 
-```
-In this summary statistic table it tells us: 
-
-* for the intercept, it is using a student t(flatter normal) prior with a mean of -0.1 and a standard deviation of 2.5. These values are derived from the median and median absolute deviation of the response variable. 
-
-
-```{r fit-model-2-3}
-standist::visualize("student_t(3,-0.1,2.5)", xlim=c(-10,10))
-standist::visualize("student_t(3,-0.1,2.5)", xlim=c(-10,10))
+saveRDS(model.mat, file="./02.mass_data_analysis_files/model1.maternal.RDS")
 ```
 
-* for the beta coefficients, including **cDENSITY**, **cFEMALE_STANDARD_LENGTH**, **DEV_TEMP**, the default priors are inproper flat priors. 
-
-* The prior on sigma is also a student t with a mean of **0** and a standard deviation of **3.8** 
-
-### MCMC sampling diagnostics {.tabset} 
-
-#### bayesplot 
-
-```{r mcmc-diag-model2-1, fig.height=9}
-mcmc_plot(model.mat, type='combo')
-mcmc_plot(model.mat, type='trace') 
-mcmc_plot(model.mat, type='dens_overlay') 
-mcmc_plot(model.mat, type='acf_bar')
-mcmc_plot(model.mat, type='rhat_hist')
-mcmc_plot(model.mat, type='neff_hist') 
-```
-
-#### stan plots
+### stan plots
 ```{r mcmc-diag-model2-2, fig.height=9}
 stan_trace(model.mat$fit)
 stan_ac(model.mat$fit) 
@@ -407,72 +683,61 @@ stan_ess(model.mat$fit)
 stan_dens(model.mat$fit, separate_chains = TRUE)
 ```
 
-### {-}
+## {-}
 
-### Summary 
+## Geographic model {.tabset}
 
-```{r summary-2}
-summary(model.mat)
+### Priors and formula
+```{r priors-geo}
+model1.geo.formula <- bf(MASS ~ 1 + 
+                         DEV_TEMP*REGION + 
+                         scale(MALE_MASS, center=TRUE, scale=TRUE) + 
+                         scale(DENSITY, center=TRUE, scale=TRUE) + 
+                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
+                         scale(LENGTH, center=TRUE, scale=TRUE) + 
+                         scale(FEMALE_LAT, center=TRUE, scale=TRUE) +  
+                         (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE), 
+                         family=gaussian())
+get_prior(model1.geo.formula, data=growth3)
+mass.priors <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(normal(0, 0.25), class="b") +
+  prior(student_t(3, 0, 0.53), class = "sigma")
 ```
 
-Based on the **model.mat** output **cFEMALE_MASS**,**cAGE_DAYS**, **DAYS_IN_TREATMENT**, and **EGG_COUNT** have no credible influence on **cMASS**. Interestingly, **HATCHING SUCCESS** seems to have a large influence on **cMASS**. 
-
-## Geographic model 
+### model1.geo
 
 ```{r fit-model-3, cache=TRUE}
-model.geo <- brm(cMASS ~ DEV_TEMP*REGION + cFEMALE_MASS + cDENSITY + cAGE_DAYS + FEMALE_LAT + cLENGTH,
-              family=gaussian(),
-              data = growth2, 
-              warmup = 4000, 
-              iter = 10000,
+model1.geo <- brm(model1.geo.formula,
+              data = growth3, 
+              prior = mass.priors,
+              warmup = 500, 
+              iter = 5000,
               seed=123, 
+              sample_prior = "yes",
               cores=2, 
               save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5) 
-prior_summary(model.geo) 
-```
-In this summary statistic table it tells us: 
-
-* for the intercept, it is using a student t(flatter normal) prior with a mean of 0.1 and a standard deviation of 3.8. These values are derived from the median and median absolute deviation of the response variable 
-
-```{r fit-model3-3}
-standist::visualize("student_t(3,-0.1,2.5)", xlim=c(-10,10))
-standist::visualize("student_t(3,-0.1,2.5)", xlim=c(-10,10))
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+prior_summary(model1.geo) 
+saveRDS(model.mat, file="./02.mass_data_analysis_files/model1.geographic.RDS")
 ```
 
-### MCMC sampling diagnostics {.tabset} 
-
-#### bayesplot 
-
-```{r mcmc-diag-model3-1, fig.height=9}
-mcmc_plot(model.geo, type='combo')
-mcmc_plot(model.geo, type='trace') 
-mcmc_plot(model.geo, type='dens_overlay') 
-mcmc_plot(model.geo, type='acf_bar')
-mcmc_plot(model.geo, type='rhat_hist')
-mcmc_plot(model.geo, type='neff_hist') 
-```
-
-#### stan plots
+### stan plots
 ```{r mcmc-diag-model3-2, fig.height=9}
-stan_trace(model.geo$fit)
-stan_ac(model.geo$fit) 
-stan_rhat(model.geo$fit) 
-stan_ess(model.geo$fit)
-stan_dens(model.geo$fit, separate_chains = TRUE)
+stan_trace(model1.geo$fit)
+stan_ac(model1.geo$fit) 
+stan_rhat(model1.geo$fit) 
+stan_ess(model1.geo$fit)
+stan_dens(model1.geo$fit, separate_chains = TRUE)
+
+hypothesis(model1.geo,hypothesis ="DEV_TEMP31.5 < DEV_TEMP30")
+plot(hypothesis(model1.geo, "DEV_TEMP30:REGIONleading<REGIONleading"))
 ```
 
-### {-}
+## {-}
 
-### Summary 
-
-```{r summary-3}
-summary(model.geo)
-``` 
-
-In the geographic model **cFEMALE_MASS**, and **cAGE** have no credible influence while.
-
+# {-}
 
 # Model Comparisons 
 
@@ -480,416 +745,141 @@ All of our models performed relatively well. To determine which model we will us
 
 The **model.mat** model will not be included in the comparison because the additional covariates within the model did not seem to explain a suitable amount of varirance in the model, ALSO, because there were more _'NA's_ in the these added covariates the observation sizes within the models were different meaning the models cannot be compared against each other using standard model comparison tools. 
 
-## Comparison methods 
-
-### WAIC
-```{r model-comparisons-1}
-model1.waic <- waic(model1)
-model.geo.waic <- waic(model.geo) 
-#model.mat.waic <- waic(model.mat)
-loo_compare(model1.waic, model.geo.waic) 
-```  
-
-### LOO
-```{r model-comparisons-2}
-LOO(model1, model.geo) 
-```
-
-### Bayes facotr
 ```{r model-comparisons-3}
-bayes_factor(model1, model.geo)
+LOO(model1, model1.geo) 
 ```
 
-# Model fit
-Model comparisons indicate that **model1** outperforms **model.geo**. From examining our models we find that **cFEMALE_MASS** and **cAGE** did not have a strong influence on any of the models, and therefore they will not be included in the final model. However, in the maternal model **HATCHING_SUCCESS** was found to have an influence on **cMASS** so we will add this factor into our final model. 
-
-Additional we will add two random factors into our model including, **(1|LEVEL)** and **(1|FEMALE)**. 
-
-```{r random-factors-1, cache=TRUE}
-model1.mass <- brm(cMASS ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
-              family=gaussian(link="identity"),
-              data = growth2, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.9))  
-summary(model1.mass)
-
-```
-
-There seems to be some small issues. Lets investigate the model to find out more. 
-
-## Model validation
+# Model validation
 
 ```{r model1.mass}
 #--- distribution check ---#
-pp_check(model1.mass, type = 'dens_overlay')
+pp_check(model1.geo, type = 'dens_overlay')
 
 #--- DHARMa checks ---#
-growth3 <- growth2 |> 
-  drop_na(HATCHING_SUCCESS)
-preds <- posterior_predict(model1.mass, ndraws=250, summary=FALSE)
-model1.mass.resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = na.omit(growth3$cMASS), 
+preds <- posterior_predict(model1.geo, ndraws=250, summary=FALSE)
+model1.geo.resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = growth3$MASS, 
                               fittedPredictedResponse = apply(preds, 2, mean), 
                               integerResponse = 'student')
-plot(model1.mass.resids) ; testDispersion(model1.mass.resids)
+plot(model1.geo.resids) ; testDispersion(model1.geo.resids)
 ```
 
-# Log-link model
-There are a couple issues with the way the residuals are distributed. Lets try to add a log-link into the model and see if that helps. 
 
-```{r random-factors-2, cache=TRUE, eval=FALSE, echo=FALSE}
-model1.mass.log <- brm(cMASS ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
-              family=gaussian(link="log"),
-              data = growth2, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.9))  
-summary(model1.mass.log)
+There are issues with this model lets fit it using a Gamma distribution. 
+
+**Note:** The Gamma distribution will have a default log link function. 
+# Model fit
+
+## Priors and formula
+```{r priors-geo.gamma}
+model1.geo.gamma.formula <- bf(MASS ~ 1 + 
+                         DEV_TEMP*REGION + 
+                         scale(MALE_MASS, center=TRUE, scale=TRUE) + 
+                         scale(DENSITY, center=TRUE, scale=TRUE) + 
+                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
+                         scale(LENGTH, center=TRUE, scale=TRUE) + 
+                         scale(FEMALE_LAT, center=TRUE, scale=TRUE) +  
+                         (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE), 
+                         family=Gamma(link="log"))
+get_prior(model1.geo.formula, data=growth3)
+geo.gamma.priors <- prior(normal(1.13, 0.20), class="Intercept") +  
+  prior(normal(0, 0.25), class="b")
 ```
 
-Lets see if the model has improved 
-
-```{r model1.mass.log, eval=FALSE, echo=FALSE}
-#--- distribution check ---#
-pp_check(model1.mass.log, type = 'dens_overlay')
-
-#--- DHARMa checks ---#
-growth3 <- growth2 |> 
-  drop_na(HATCHING_SUCCESS)
-preds <- posterior_predict(model1.mass.log, ndraws=250, summary=FALSE)
-model1.mass.log.resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = na.omit(growth3$cMASS), 
-                              fittedPredictedResponse = apply(preds, 2, median), 
-                              integerResponse = 'student')
-plot(model1.mass.log.resids) ; testDispersion(model1.mass.log.resids)
-```
-
-Not really, in fact the log link perhaps makes it worse! Maybe we can try a student's t distribution which has fatter tails and may deal with residuals a bit better. 
-
-# Student Model
-```{r random-factors-3, cache=TRUE, eval=FALSE, echo=FALSE}
-model1.mass.st <- brm(cMASS ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
-              family=student,
-              data = growth2, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.9))  
-summary(model1.mass.st)
-```
-
-Lets see if the model has improved 
-
-```{r model1.mass.student, eval=FALSE, echo=FALSE}
-#--- distribution check ---#
-pp_check(model1.mass.st, type = 'dens_overlay')
-
-#--- DHARMa checks ---#
-growth3 <- growth2 |> 
-  drop_na(HATCHING_SUCCESS)
-preds <- posterior_predict(model1.mass.st, ndraws=250, summary=FALSE)
-model1.mass.st.resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = na.omit(growth3$cMASS), 
-                              fittedPredictedResponse = apply(preds, 2, median), 
-                              integerResponse = 'student')
-plot(model1.mass.st.resids) ; testDispersion(model1.mass.st.resids)
-```
-
-The student t distribution doesn't change the results. In all the models the observed values seem to lower than expected, and the values at the lower end seem to have issues with their residuals. There may be an issue with how the data is being modelled. So here is what I will try moving forward: 
-
-1. Center MASS on median value instead of Mean 
-2. scale numeric co-variates including cLength, hatching success, and density. 
-
-# Median-centered model
-Lets start with the first option 
-
-```{r re-fit-model-3, eval=FALSE, echo=FALSE}
-growth4 <- growth2 |> 
-  mutate(mdMASS = scale(MASS, center = median(MASS), scale=FALSE)[,1])
-
-``` 
-
-Let's try out gaussian model to see if this improves the outcome 
-
-```{r re-fit-model-5, eval=FALSE, echo=FALSE}
-model1.mdMASS <- brm(mdMASS ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
-              family=gaussian,
-              data = growth4, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.9))  
-
-```
-
-```{r model.mdMASS, eval=FALSE, echo=FALSE}
-#--- distribution check ---#
-pp_check(model1.mdMASS, type = 'dens_overlay')
-
-#--- DHARMa checks ---#
-growth5 <- growth4 |> 
-  drop_na(HATCHING_SUCCESS)
-preds <- posterior_predict(model1.mdMASS, ndraws=250, summary=FALSE)
-model1.mdMASS.resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = na.omit(growth5$mdMASS), 
-                              fittedPredictedResponse = apply(preds, 2, median), 
-                              integerResponse = 'student')
-plot(model1.mdMASS.resids) ; testDispersion(model1.mdMASS.resids)
-```
-
-Doesn't seem to help 
-
-# scaled model
-```{r model1.scaled, eval=FALSE, echo=FALSE}
-
-growth4 <- growth4 |> 
-  mutate(HATCHING_SUCCESS = scale(HATCHING_SUCCESS, center=TRUE, scale = TRUE), 
-         cDENSITY = scale(cDENSITY, center=FALSE, scale=TRUE), 
-         cLength = scale(cLENGTH, center=FALSE, scale=TRUE))
-model1.scaled <- brm(cMASS ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
-              family=gaussian,
-              data = growth4, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.9))  
-
-
-pp_check(model1.scaled, type = 'dens_overlay')
-
-#--- DHARMa checks ---#
-growth5 <- growth4 |> 
-  drop_na(HATCHING_SUCCESS)
-preds <- posterior_predict(model1.scaled, ndraws=250, summary=FALSE)
-model1.scaled.resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = na.omit(growth5$mdMASS), 
-                              fittedPredictedResponse = apply(preds, 2, median), 
-                              integerResponse = 'student')
-plot(model1.scaled.resids) ; testDispersion(model1.scaled.resids)
-```
-
-This makes the model worse. Out of ideas for now. 
-
-# log-transformed model
-```{r model1.tlog, eval=FALSE, echo=FALSE}
-model1.tlog <- brm(log(cMASS) ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
-              family=gaussian,
-              data = growth2, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.9)) 
-
-pp_check(model1.tlog, type = 'dens_overlay')
-
-#--- DHARMa checks ---#
-growth3 <- growth2 |> 
-  drop_na(HATCHING_SUCCESS)
-preds <- posterior_predict(model1.tlog, ndraws=250, summary=FALSE)
-model1.tlog.resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = na.omit(log(growth3$cMASS)), 
-                              fittedPredictedResponse = apply(preds, 2, median), 
-                              integerResponse = 'student')
-plot(model1.tlog.resids) ; testDispersion(model1.tlog.resids)
-``` 
-
-# Square-root transformed model 
-```{r model1.tsqrt, eval=FALSE, echo=FALSE}
-model1.tsqrt <- brm(sqrt(cMASS) ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
-              family=gaussian(),
-              data = growth2, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.9)) 
-
-summary(model1.tsqrt)
-pp_check(model1.tsqrt, type = 'dens_overlay')
-
-#--- DHARMa checks ---#
-growth3 <- growth2 |> 
-  drop_na(HATCHING_SUCCESS)
-preds <- posterior_predict(model1.tsqrt, ndraws=250, summary=FALSE)
-model1.tsqrt.resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = na.omit(sqrt(growth3$cMASS)), 
-                              fittedPredictedResponse = apply(preds, 2, median), 
-                              integerResponse = 'student')
-plot(model1.tsqrt.resids) ; testDispersion(model1.tsqrt.resids)
-``` 
-
-The square root transformation seems to help with the lower end residuals. There are still some issues with the data but it is looking much better. We may try some slight adjustments but over all it looks pretty good. 
-
-# Square-root transformed model with student distribution
-```{r model1.tsqrt.student, cache=TRUE}
-model1.tsqrt.student <- brm(sqrt(cMASS) ~ DEV_TEMP*REGION + HATCHING_SUCCESS + cDENSITY + cLENGTH + (1|LEVEL) + (1|FEMALE),
-              family=student(),
-              data = growth2, 
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.99)) 
-
-summary(model1.tsqrt.student )
-pp_check(model1.tsqrt.student , type = 'dens_overlay')
-
-#--- DHARMa checks ---#
-growth3 <- growth2 |> 
-  drop_na(HATCHING_SUCCESS)
-preds <- posterior_predict(model1.tsqrt.student , ndraws=250, summary=FALSE)
-model1.tsqrt.student.resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = na.omit(sqrt(growth3$cMASS)), 
-                              fittedPredictedResponse = apply(preds, 2, median), 
-                              integerResponse = 'student')
-plot(model1.tsqrt.student.resids) ; testDispersion(model1.tsqrt.student.resids)
-``` 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## Basic model
-```{r fit-model-1, cache=TRUE}
-model1.mass <- brm(MASS ~ DEV_TEMP*REGION + 
-                scale(FEMALE_MASS, center=TRUE, scale=TRUE) + 
-                scale(DENSITY, center=TRUE, scale=TRUE) + 
-                scale(AGE_DAYS, center=TRUE, scale=TRUE) + 
-                scale(LENGTH, center=TRUE, scale=TRUE) + 
-                (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE),
-              family=gaussian(),
-              data = growth2, 
+## Model1.geo.gamma
+
+```{r model1.geo.gamma, cache=TRUE}
+model1.geo.gamma <- brm(model1.geo.gamma.formula,
+              data = growth3, 
+              prior = geo.gamma.priors,
               warmup = 500, 
               iter = 5000,
               seed=123, 
               cores=2, 
               save_pars = save_pars(all=TRUE),  
-              chains = 4, 
+              chains = 2, 
               thin = 5, 
-              control = list(adapt_delta=0.95)) 
-prior_summary(model1) 
+              control = list(adapt_delta=0.9))  
+summary(model1.geo.gamma)
+saveRDS(model1.geo.gamma, file="./02.mass_data_analysis_files/model1.geo.gamma.RDS")
 ```
+
+
+# Model validation
+
+```{r model-diag-model1.geo.gamma}
+#--- distribution check ---#
+pp_check(model1.geo.gamma, type = 'dens_overlay')
+
+#--- DHARMa checks ---#
+preds <- posterior_predict(model1.geo.gamma, ndraws=250, summary=FALSE)
+model1.geo.resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = growth3$MASS, 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'normal')
+plot(model1.geo.resids) ; testDispersion(model1.geo.resids)
+```
+
+# Partial effects plots 
+
+## conditional_effects 
+
+```{r partial-plots-cond-eff-1}
+model1.geo.gamma |> 
+  conditional_effects(spaghetti = TRUE, ndraws=200) 
+``` 
 
 # Model investigation {.tabset}
 
 ## summary 
 
 ```{r summary-100}
-summary(model1.tsqrt.student)
+summary(model1.geo.gamma)
+#car::Anova(model1.geo.gamma)
 ```
 
 ## R2 
 
 ```{r r-squared}
-model1.tsqrt.student |> bayes_R2(summary = FALSE) |> median_hdci()
+model1.geo.gamma |> bayes_R2(summary = FALSE) |> median_hdci()
 ```
 
 ## tidyMCMC 
 
 ```{r tidy}
-tidyMCMC(model1.tsqrt.student, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+tidyMCMC(model1.geo.gamma, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
 ```
 
 ## gather draws 
 
 ```{r gather_draws}
 #model1.re.wo |> get_variables()
-model1.tsqrt.student |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+model1.geo.gamma |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
   median_hdci()
 ``` 
 
 ## bayesplot 
 
 ```{r bayesplot-1}
-model1.tsqrt.student |> mcmc_plot(type='intervals')
+model1.geo.gamma |> mcmc_plot(type='intervals')
 ```
 
 ## emmeans - pariwise 
 
 ```{r emmeans-pairwise}
-model1.tsqrt.student |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
+model1.geo.gamma |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary(infer=TRUE)
+
+model1.geo.gamma |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> confint()
+
+model1.geo.gamma |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() 
+
+model1.geo.gamma |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> confint()
 ```
 
 ## probabilities 
 ```{r probabilities}
-#model1.tsqrt.student |> emmeans(~ REGION | DEV_TEMP, at = list(DEV_TEMP = 31.5, length.out = 10)) |> pairs(type = 'response')
-mtsqst <- model1.tsqrt.student |> emmeans(pairwise ~ REGION*DEV_TEMP)
+#model1.geo.gamma |> emmeans(~ REGION | DEV_TEMP, at = list(DEV_TEMP = 31.5, length.out = 10)) |> pairs(type = 'response')
+mtsqst <- model1.geo.gamma |> emmeans(pairwise ~ REGION*DEV_TEMP)
 mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
 mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 ```
@@ -899,10 +889,10 @@ mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 # summary figure 
 
 ```{r summary-figure-1, warning=FALSE, message=FALSE}
-var <- get_variables(model1.tsqrt.student)
-var1 <- get_variables(model1.tsqrt.student)[c(1:4,8:9)] ; var1 
+var <- get_variables(model1.geo.gamma); var
+var1 <- get_variables(model1.geo.gamma)[c(1:4,10,11)] ; var1 
 
-int_draws_spread <- model1.tsqrt.student |> spread_draws(!!!syms(var1)) #|> 
+int_draws_spread <- model1.geo.gamma |> spread_draws(!!!syms(var1)) #|> 
   #mutate(b_Intercept = b_Intercept^2, 
         # b_DEV_TEMP30 = b_DEV_TEMP30^2, 
         # b_DEV_TEMP31.5 = b_DEV_TEMP31.5^2, 
@@ -954,7 +944,7 @@ int_draws_plotting <- int_draws |>
 
 mass.plot <- int_draws_plotting |> 
   ggplot(aes(x=EXP_GROUP, y=MASS)) + 
-  geom_hline(yintercept = 0, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
+  #geom_hline(yintercept = 0, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
   stat_halfeye(aes(fill = EXP_GROUP, fill_ramp = after_stat(level)), 
                point_interval = mode_hdci, 
                .width = c(.66, .90, .95)) + 
@@ -962,20 +952,26 @@ mass.plot <- int_draws_plotting |>
                            labels =c("0.95","0.90","0.66"), 
                            name = "Credible interval") +
   scale_fill_manual(values = c("lightskyblue" ,"dodgerblue2", "dodgerblue4","coral", "red2","firebrick4"))+ 
-  scale_y_continuous(limits=c(-0.5,0.5), breaks = seq(-0.5,0.5, .1))+
-  ylab("CENTERED MASS (g)") + xlab("EXPERIMENTAL GROUP") +
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, .5))+
+  ylab("MASS (g)") + xlab("EXPERIMENTAL GROUP") +
   scale_x_discrete(labels = c("Low latitude_DEV_TEMP_28.5" = paste0("Low latitude 28.5","\u00B0","C"), 
                               "Low latitude_DEV_TEMP_30" = paste0("Low latitude 30","\u00B0","C"),
                               "Low latitude_DEV_TEMP_31.5" = paste0("Low latitude 31.5","\u00B0","C"), 
                               "High latitude_DEV_TEMP_28.5" = paste0("High latitude 28.5","\u00B0","C"),
                               "High latitude_DEV_TEMP_30" = paste0("High latitude 30","\u00B0","C"),
                               "High latitude_DEV_TEMP_31.5" = paste0("High latitude 31.5","\u00B0","C"))) +
-  annotate("text", x=6.8,y=1.4, label = paste0(round(mean(growth3$MASS), 2)," (mm)"), color="grey58") +
+  #annotate("text", x=6.8,y=1.4, label = paste0(round(mean(growth3$MASS), 2)," (mm)"), color="grey58") +
   coord_flip() + 
   theme_classic() + 
   guides(fill = "none") + 
-  theme(legend.position = c(.28,.86), 
+  theme(legend.position = c(.15,.86), 
         axis.title.y = element_text(margin = margin(r =0.3, unit = "in"), size = 12), 
         axis.title.x = element_text(margin = margin(t = 0.3, unit="in"), size =12), 
-        legend.key = element_rect(color="black", size=1.25)); mass.plot
+        legend.key = element_rect(color="black", size=1.25), 
+        legend.background = element_rect(fill = alpha("blue", 0))); mass.plot
+```
+
+```{r eval=FALSE, echo=TRUE}
+ggsave(file="./figures/mass.plot.svg",  plot=mass.plot, width=8, height=5, units = "in", dpi=300) 
+ggsave(file="./figures/mass.plot.pdf",  plot=mass.plot, width=8, height=5, units = "in", dpi=300)
 ```
