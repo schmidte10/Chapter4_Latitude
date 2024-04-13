@@ -827,6 +827,7 @@ model1.geo.resids <- createDHARMa(simulatedResponse = t(preds),
                               fittedPredictedResponse = apply(preds, 2, mean), 
                               integerResponse = 'gamma')
 plot(model1.geo.resids) ; testDispersion(model1.geo.resids)
+
 ```
 
 # Partial effects plots 
