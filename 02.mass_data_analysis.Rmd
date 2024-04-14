@@ -736,9 +736,9 @@ hypothesis(model1.geo,hypothesis ="DEV_TEMP31.5 < DEV_TEMP30")
 plot(hypothesis(model1.geo, "DEV_TEMP30:REGIONleading<REGIONleading"))
 ```
 
-## {-}
+### {-}
 
-# {-}
+## {-}
 
 # Model Comparisons 
 
@@ -754,7 +754,7 @@ LOO(model1, model1.geo)
 
 ```{r model1.mass}
 #--- distribution check ---#
-pp_check(model1.mat, type = 'dens_overlay')
+pp_check(model1.geo, type = 'dens_overlay')
 
 #--- DHARMa checks ---#
 preds <- posterior_predict(model1.geo, ndraws=250, summary=FALSE)
@@ -894,7 +894,7 @@ mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
 mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 ```
 
-# {-}
+## {-}
 
 # summary figure 
 
