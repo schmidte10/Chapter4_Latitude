@@ -379,8 +379,7 @@ ctmax2 |>
 
 ### Priors and formula
 ```{r priors-model1.ctmax}
-model1.ctmax.formula <- bf(LOE_MEAN_EAS ~ 1 + 
-                       DEV_TEMP*REGION + 
+model1.ctmax.formula <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
                        scale(MASS, center=TRUE, scale=TRUE) + 
                        + (1|TANK) + (1|FEMALE)+ (1|EXPERIMENT) + (1|EXP_TANK/TRAY_ORD) + (1|POPULATION), 
                      family=gaussian())

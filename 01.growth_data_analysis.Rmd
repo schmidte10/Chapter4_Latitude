@@ -581,7 +581,7 @@ model1.formula <- bf(LENGTH ~ DEV_TEMP*REGION +
                       scale(FEMALE_STANDARD_LENGTH, center=TRUE, scale=TRUE) + 
                       scale(DENSITY, center=TRUE, scale=TRUE) + 
                       scale(AGE_DAYS, center=TRUE, scale=TRUE)+ 
-                       (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE),
+                      (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER),
               family=gaussian()) 
 get_prior(model1.formula, data=growth3)
 growth.priors <- prior(normal(31.4, 1.5), class="Intercept") + 
@@ -631,8 +631,8 @@ model.mat.formula <- bf(LENGTH ~ DEV_TEMP*REGION +
                       scale(DENSITY, center=TRUE, scale=TRUE) + 
                       scale(AGE_DAYS, center=TRUE, scale=TRUE)+ 
                       scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE)+
-                      scale(EGG_COUNT, center=TRUE, scale=TRUE)+
-                       (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE),
+                      scale(EGG_COUNT, center=TRUE, scale=TRUE) + 
+                      (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER),
               family=gaussian()) 
 get_prior(model1.formula, data=growth3)
 growth.priors <- prior(normal(31.4, 1.5), class="Intercept") + 
@@ -677,7 +677,7 @@ model.geo.formula <- bf(LENGTH ~ DEV_TEMP*REGION +
                       scale(DENSITY, center=TRUE, scale=TRUE) + 
                       scale(AGE_DAYS, center=TRUE, scale=TRUE)+ 
                       scale(FEMALE_LAT, center=TRUE, scale=TRUE)+
-                       (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE),
+                      (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER),
               family=gaussian()) 
 get_prior(model1.formula, data=growth3)
 growth.priors <- prior(normal(31.4, 1.5), class="Intercept") + 
@@ -761,7 +761,13 @@ model1 |>
 ## summary 
 
 ```{r summary-100}
-summary(model1)
+summary(model1) 
+```
+
+## ANOVA 
+
+```{r Anova}
+model1 |> ref_grid() |> joint_tests()
 ```
 
 ## R2 

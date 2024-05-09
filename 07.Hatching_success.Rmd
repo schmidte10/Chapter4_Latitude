@@ -1,0 +1,434 @@
+---
+title: "07. Hatching success"
+author: "Elliott Schmidt"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    toc: true  
+    toc_depth: 4
+    toc_float: true
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 6
+    highlight: monochrome
+    theme: cerulean
+    latex_engine: xelatex
+--- 
+
+# Scenario 
+
+Within this chapter developmental plasticity was explored within _Acanthochromis polyacanthus_ that were collected from two different regions (i.e., low-latitude, Cairns, and high-latitude, Mackay). Fish were held in common garden experiments at 28.5 C. Reproductive meterics are only relevant to parental fish. Understanding potential differences in reproduction within fish from low- and high-latitude populations will provide basis of where juveniles are starting from. 
+
+# Load packages 
+
+```{r load-packages-1, warning=FALSE, message=FALSE}
+library(tidyverse) # data manipulation
+library(ggpubr) # figure arrangement 
+library(brms) # Bayesian models
+library(StanHeaders)# needed to run Bayesian models
+library(rstan) # needed to run Bayesian models
+library(standist) # needs to be installed 
+library(bayesplot) # needed for MCMC diagnostics 
+library(DHARMa) # model validation 
+library(ggdist) # partial plots 
+library(tidybayes) # partial plots 
+library(broom.mixed) # model investigation
+library(emmeans) # pairwise comparisons
+library(rstanarm) # pairwise comparisons - need for emmeans
+```
+
+
+# Set working directory 
+
+```{r setwd-1, echo=FALSE}
+knitr::opts_knit$set(root.dir="C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude")
+``` 
+
+```{r setwd-2, echo=TRUE, eval=FALSE}
+knitr::opts_knit$set(root.dir=working.dir)
+```
+
+# Import data 
+
+Note that when making the datasheet, each clutch was designated an 'experimental_number' that is associated with which experiment(s) clutches were involved in, therefore when importing the data, we will filter data to give us only clutches that were used in the relevent 'developmental plasticity experiment'. We are also dropping one clutch that was found only when individuals hatched, meaning we don't know the clutch size, or hatching success
+
+```{r import-data-1, message=FALSE}
+clutch_data <- read_delim("import_files/clutch_data_2022_2023.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE) |> 
+  mutate(PROJECT_CODE = factor(PROJECT_CODE)) |>
+  filter(PROJECT_CODE == "2"| 
+         PROJECT_CODE == "3"|
+         PROJECT_CODE == "6"|
+         PROJECT_CODE == "7") |> 
+  drop_na(EGG_COUNT)
+```  
+
+We are left with 20 clutches; 12 from the Core region (from 11 unique pairs), and 8 from the leading region (from 5 unique pairs). 
+
+# Data manipulation 
+
+```{r data-manipulation, warning=FALSE}
+clutch_data2 <- clutch_data |> 
+  mutate(CLUTCH_NUMBER = as.factor(CLUTCH_NUMBER), 
+         MALE = factor(MALE), 
+         FEMALE = factor(FEMALE), 
+         REGION = factor(REGION), 
+         POPULATION = factor(POPULATION),
+         CLUTCH_ORDER = factor(CLUTCH_ORDER),
+         DATE_OF_HATCH = as.Date(DATE_OF_HATCH, format = "%d/%m/%Y"), 
+         FEMALE_MASS = coalesce(FEMALE_MASS, MALE_MASS))
+
+``` 
+
+# Exploratory data analysis 
+
+```{r eda-2, warning=FALSE, message=FALSE, echo=FALSE}
+hs1 <- ggplot(clutch_data2, aes(x=REGION, y=HATCHING_SUCCESS, fill=REGION)) + 
+  geom_boxplot() + 
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0,1, 0.1)) +
+  theme_classic() 
+
+hs2 <- ggplot(clutch_data2, aes(x=REGION, y=HATCHING_SUCCESS, fill=REGION)) + 
+  geom_dotplot(binaxis = "y") + 
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0,1, 0.1)) +
+  theme_classic() 
+
+ggarrange(hs1, hs2, 
+          nrow=1, 
+          ncol=2)
+```
+
+
+# Prior investigation 
+
+```{r prior investigation}
+clutch_data2 |> 
+  group_by(REGION) |> 
+  summarise(mean(na.omit(HATCHING_SUCCESS)), 
+            sd(na.omit(HATCHING_SUCCESS))) 
+```
+## Priors 
+
+```{r priors}
+hatching_success.priors <- prior(normal(0.72, 0.5), class="Intercept")
+```
+
+# Random effect modelling {.tabset .tabset-pills}
+
+## null model 
+```{r null-model, cache=TRUE}
+null.model.formula <- bf(HATCHING_SUCCESS ~ 1, 
+                         family = Beta()) 
+
+null.model <- brm(null.model.formula, 
+                  data=clutch_data2, 
+                  prior=prior(normal(0,1),class="Intercept"), 
+                  warmup=500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes", 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
+saveRDS(null.model, file='./07.Hatching_success_files/null.model.RDS')
+```
+## model1 
+```{r model1, cache=TRUE}
+model1.formula <- bf(HATCHING_SUCCESS ~ 1 + (1| FEMALE), 
+                         family = Beta()) 
+
+model1 <- brm(model1.formula, 
+                  data=clutch_data2, 
+                  prior=prior(normal(0,1),class="Intercept"), 
+                  warmup=500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes", 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
+#saveRDS(model1, file='./07.Hatching_success_files/model1.RDS')
+```
+
+## model2 
+```{r model2, cache=TRUE}
+model2.formula <- bf(HATCHING_SUCCESS ~ 1 + (1| FEMALE) + (1| POPULATION), 
+                         family = Beta()) 
+
+model2 <- brm(model2.formula, 
+                  data=clutch_data2, 
+                  prior=prior(normal(0,1),class="Intercept"), 
+                  warmup=500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes", 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
+#saveRDS(model2, file='./07.Hatching_success_files/model2.RDS')
+```
+
+## model3 
+```{r model3, cache=TRUE}
+model3.formula <- bf(HATCHING_SUCCESS ~ 1 + (1| FEMALE) + (1| POPULATION) + (1| CLUTCH_ORDER), 
+                         family = Beta()) 
+
+model3 <- brm(model3.formula, 
+                  data=clutch_data2, 
+                  prior=prior(normal(0,1),class="Intercept"), 
+                  warmup=500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes", 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
+#saveRDS(model3, file='./07.Hatching_success_files/model3.RDS')
+```
+
+## {-}
+
+## Model comparison [random factors]
+
+```{r}
+LOO(null.model, model1, model2, model3)
+```
+
+# priors {.tabset .tabset-pills}
+```{r priors-2}
+clutch_data2 |> 
+  group_by(REGION) |> 
+  summarise(mean(na.omit(HATCHING_SUCCESS)), 
+            sd(na.omit(HATCHING_SUCCESS))) 
+#get_prior(model1.1.formula, data=clutch_data2)
+hatching_success.priors <- prior(normal(0.72, 0.5), class="Intercept") + 
+  prior(normal(0,1), class = "b")
+```
+## Fixed effect modelling {.tabset .tabset-pills}
+
+### Basic model
+
+```{r model1.1, cache=TRUE}
+model1.1.formula <- bf(HATCHING_SUCCESS ~ 1 + REGION + scale(FEMALE_MASS) + (1| FEMALE), 
+                         family = Beta())
+
+model1.1 <- brm(model1.1.formula, 
+                  data=clutch_data2, 
+                  prior=hatching_success.priors, 
+                  warmup=500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes", 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
+```
+
+### Temporal model
+
+```{r model1.2, cache=TRUE}
+model1.2.formula <- bf(HATCHING_SUCCESS ~ 1 + REGION + scale(FEMALE_MASS) + scale(DAYS_IN_TREATMENT) + (1| FEMALE), 
+                         family = Beta()) 
+
+model1.2 <- brm(model1.2.formula,
+              data = clutch_data2, 
+              prior=hatching_success.priors,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              chains = 2, 
+              sample_prior = "yes", 
+              thin = 5, 
+              control = list(adapt_delta=0.95))
+```
+### {-}
+
+# LOO
+```{r model-comparisons-2}
+LOO(model1.1, model1.2) 
+```
+
+# model performance
+```{r hs-fit-model-4, fig.height=9}
+stan_trace(model1.1$fit)
+stan_ac(model1.1$fit) 
+stan_rhat(model1.1$fit) 
+stan_ess(model1.1$fit)
+stan_dens(model1.1$fit, separate_chains = TRUE)
+```
+
+# Model diagnositics 
+
+```{r hatch-diag-1a}
+#--- distribution check ---#
+pp_check(model1.1, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+```
+
+```{r hatch-diag-1b}
+clutch_data2.naomit <- drop_na(clutch_data2, FEMALE_MASS)
+preds <- posterior_predict(model1.1, ndraws=250, summary=FALSE)
+model1.1_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = clutch_data2.naomit$HATCHING_SUCCESS, 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.1_resids) ; testDispersion(model1.1_resids)
+``` 
+
+# Model re-fit 1
+
+```{r model1.1_probit, cache=TRUE}
+model1.1_probit_formula <- bf(HATCHING_SUCCESS ~ 1 + REGION + scale(FEMALE_MASS) + (1| FEMALE), 
+                         family = Beta(link="probit"))
+
+model1.1_probit <- brm(model1.1_probit_formula, 
+                  data=clutch_data2, 
+                  prior=hatching_success.priors, 
+                  warmup=500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes", 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
+
+```
+
+## Model performance 
+
+```{r model1.1_probit-performance, fig.height=9}
+stan_trace(model1.1_probit$fit)
+stan_ac(model1.1_probit$fit) 
+stan_rhat(model1.1_probit$fit) 
+stan_ess(model1.1_probit$fit)
+stan_dens(model1.1_probit$fit, separate_chains = TRUE)
+```
+## Model diagnositics 
+
+```{r hatch-diag-2a}
+#--- distribution check ---#
+pp_check(model1.1_probit, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+```
+
+```{r hatch-diag-2b}
+clutch_data2.naomit <- drop_na(clutch_data2, FEMALE_MASS)
+preds <- posterior_predict(model1.1_probit, ndraws=250, summary=FALSE)
+model1.1_probit_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = clutch_data2.naomit$HATCHING_SUCCESS, 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.1_probit_resids) ; testDispersion(model1.1_probit_resids)
+``` 
+
+# Model re-fit 2
+
+
+```{r model1.1_logit.log, cache=TRUE}
+model1.1_log_formula <- bf(HATCHING_SUCCESS ~ 1 + REGION + scale(FEMALE_MASS) + (1| FEMALE), 
+                         family = Beta(link="probit", link_phi = "log"))
+
+model1.1_log <- brm(model1.1_log_formula, 
+                  data=clutch_data2, 
+                  prior=hatching_success.priors, 
+                  warmup=500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes", 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
+``` 
+## Model performance 
+
+```{r model1.1_probitlog-performance, fig.height=9}
+stan_trace(model1.1_log$fit)
+stan_ac(model1.1_log$fit) 
+stan_rhat(model1.1_log$fit) 
+stan_ess(model1.1_log$fit)
+stan_dens(model1.1_log$fit, separate_chains = TRUE)
+```
+
+## Model diagnositics 
+
+```{r hatch-diag-probitlog}
+#--- distribution check ---#
+pp_check(model1.1_log, type = 'dens_overlay_grouped', ndraws=100, group="REGION")
+```
+
+```{r hatch-diag-logit}
+clutch_data2.naomit <- drop_na(clutch_data2, FEMALE_MASS)
+preds <- posterior_predict(model1.1_log, ndraws=250, summary=FALSE)
+model1.1_log_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = clutch_data2.naomit$HATCHING_SUCCESS, 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.1_log_resids) ; testDispersion(model1.1_log_resids)
+``` 
+
+# Model re-fit 3
+
+
+```{r model1.1_sqplus, cache=TRUE}
+model1.1_sqplus_formula <- bf(HATCHING_SUCCESS ~ 1 + REGION + scale(FEMALE_MASS) + (1| FEMALE), 
+                         family = Beta(link="probit", link_phi = "squareplus"))
+
+model1.1_sqplus <- brm(model1.1_sqplus_formula, 
+                  data=clutch_data2, 
+                  prior=hatching_success.priors, 
+                  warmup=500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes", 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
+``` 
+## Model performance 
+
+```{r model1.1_sqplus-performance, fig.height=9}
+stan_trace(model1.1_sqplus$fit)
+stan_ac(model1.1_sqplus$fit) 
+stan_rhat(model1.1_sqplus$fit) 
+stan_ess(model1.1_sqplus$fit)
+stan_dens(model1.1_sqplus$fit, separate_chains = TRUE)
+```
+
+## Model diagnositics 
+
+```{r hatch-diag-3a}
+#--- distribution check ---#
+pp_check(model1.1_sqplus, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+```
+
+```{r hatch-diag-sqplus}
+preds <- posterior_predict(model1.1_sqplus, ndraws=250, summary=FALSE)
+model1.1_sqplus_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = clutch_data2.naomit$HATCHING_SUCCESS, 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.1_sqplus_resids) ; testDispersion(model1.1_sqplus_resids)
+``` 
+
+
+

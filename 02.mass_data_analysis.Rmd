@@ -781,7 +781,7 @@ model1.geo.gamma.formula <- bf(MASS ~ 1 +
                          scale(LENGTH, center=TRUE, scale=TRUE) + 
                          scale(FEMALE_LAT, center=TRUE, scale=TRUE) +  
                          (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE), 
-                         family=Gamma())
+                         family=Gamma(link = "log"))
 get_prior(model1.geo.gamma.formula, data=growth3)
 geo.gamma.priors <- prior(normal(1.13, 0.20), class="Intercept") +  
   prior(normal(0, 0.25), class="b")
@@ -802,7 +802,7 @@ model1.geo.gamma <- brm(model1.geo.gamma.formula,
               thin = 5, 
               control = list(adapt_delta=0.9))  
 summary(model1.geo.gamma)
-saveRDS(model1.geo.gamma, file="./02.mass_data_analysis_files/model1.geo.gamma.RDS")
+#saveRDS(model1.geo.gamma, file="./02.mass_data_analysis_files/model1.geo.gamma.RDS")
 ```
 
 ## stan plots
@@ -900,7 +900,7 @@ mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 
 ```{r summary-figure-1, warning=FALSE, message=FALSE}
 var <- get_variables(model1.geo.gamma); var
-var1 <- get_variables(model1.geo.gamma)[c(1:4,10,11)] ; var1 
+var1 <- get_variables(model1.geo.gamma)[c(1:4,10,11)] 
 
 int_draws_spread <- model1.geo.gamma |> spread_draws(!!!syms(var1)) #|> 
   #mutate(b_Intercept = b_Intercept^2, 
