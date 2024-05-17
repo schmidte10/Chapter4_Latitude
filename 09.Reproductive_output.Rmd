@@ -1,0 +1,542 @@
+---
+title: "09.Reproductive_output"
+author: "Elliott Schmidt"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    toc: true  
+    toc_depth: 2
+    toc_float: true
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 6
+    highlight: monochrome
+    theme: cerulean
+    latex_engine: xelatex
+---
+
+# Scenario 
+
+Within this chapter developmental plasticity was explored within Acanthochromis polyacanthus that were collected from two different regions (i.e., low-latitude, Cairns, and high-latitude, Mackay). Fish were held in common garden experiments at 28.5 C. Reproductive meterics are only relevant to parental fish. Understanding potential differences in reproduction within fish from low- and high-latitude populations will provide basis of where juveniles are starting from.
+
+# Load packages
+
+```{r load-packages, warning=FALSE, message=FALSE}
+library(car)
+library(tidyverse) # data manipulation
+library(ggpubr) # figure arrangement 
+library(brms) # Bayesian models
+library(StanHeaders)# needed to run Bayesian models
+library(rstan) # needed to run Bayesian models
+library(standist) # needs to be installed 
+library(bayesplot) # needed for MCMC diagnostics 
+library(DHARMa) # model validation 
+library(ggdist) # partial plots 
+library(tidybayes) # partial plots 
+library(broom.mixed) # model investigation
+library(emmeans) # pairwise comparisons
+library(rstanarm) # pairwise comparisons - need for emmeans
+library(effectsize)
+```
+
+# Set working directory 
+
+```{r setwd-1, echo=FALSE}
+knitr::opts_knit$set(root.dir="C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude")
+``` 
+
+```{r setwd-2, echo=TRUE, eval=FALSE}
+knitr::opts_knit$set(root.dir=working.dir)
+``` 
+
+# Import data 
+
+Note that when making the datasheet, each clutch was designated an 'experimental_number' that is associated with which experiment(s) clutches were involved in, therefore when importing the data, we will filter data to give us only clutches that were used in the relevant 'developmental plasticity experiment'. We are also dropping one clutch that was found only when individuals hatched, meaning we don't know the clutch size, or hatching success.
+
+```{r Import-data}
+egg_size <- read_delim("import_files/egg_size_data_2022_2023.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+
+clutch_data <- read_delim("import_files/clutch_data_2022_2023.txt", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE) |> 
+  mutate(PROJECT_CODE = factor(PROJECT_CODE)) |>
+  filter(PROJECT_CODE == "2"| 
+         PROJECT_CODE == "3"|
+         PROJECT_CODE == "6"|
+         PROJECT_CODE == "7") |> 
+  drop_na(EGG_COUNT)
+```
+
+# Data manipulation 
+```{r data-manipulation}
+egg_size2 <- egg_size |> 
+  mutate(CLUTCH_NUMBER = as.factor(CLUTCH_NUMBER), 
+         MALE = factor(MALE), 
+         FEMALE = factor(FEMALE), 
+         REGION = factor(REGION), 
+         POPULATION = factor(POPULATION),
+         CLUTCH_ORDER = factor(CLUTCH_ORDER),
+         DATA_EGGS_FOUND = as.Date(DATA_EGGS_FOUND, format = "%d/%m/%Y")) |> 
+  select(-c("NOTES","...18")) |> 
+  group_by(CLUTCH_NUMBER) |> 
+  summarise(AVG_EGG_SIZE = mean(EGG_SIZE)) |>
+  ungroup()
+
+clutch_data2 <- clutch_data |> 
+  mutate(CLUTCH_NUMBER = as.factor(CLUTCH_NUMBER), 
+         MALE = factor(MALE), 
+         FEMALE = factor(FEMALE), 
+         REGION = factor(REGION), 
+         POPULATION = factor(POPULATION),
+         CLUTCH_ORDER = factor(CLUTCH_ORDER),
+         FEMALE_MASS = coalesce(FEMALE_MASS, MALE_MASS)) 
+
+reprod.output <- clutch_data2 |> 
+  inner_join(egg_size2, by="CLUTCH_NUMBER") |> 
+  mutate(REPRODUCTIVE_OUTPUT = EGG_COUNT * AVG_EGG_SIZE)
+```
+
+# Exploratory data analysis 
+
+## Reproductive output
+```{r eda-1}
+p1 <- ggplot(reprod.output, aes(x =REGION, y =REPRODUCTIVE_OUTPUT, fill =REGION)) + 
+         geom_boxplot(color ="black") + 
+         theme_classic()
+``` 
+
+```{r eda-2}
+p2 <- ggplot(reprod.output, aes(x =REGION, y =REPRODUCTIVE_OUTPUT, fill =REGION, color =REGION)) + 
+  geom_violin(alpha=.3, linewidth=1.5) + 
+  geom_dotplot(binaxis = "y", stackdir = 'center') +
+  theme_classic()
+```
+
+```{r eda-3}
+p3 <- ggplot(reprod.output, aes(x =REPRODUCTIVE_OUTPUT, fill =REGION)) + 
+  geom_dotplot(color ="black") + 
+  geom_density(alpha=0.6) +
+  theme_classic()
+```
+
+```{r eda-4}
+p4 <- ggplot(clutch_data2, aes(x =REGION, y =FEMALE_MASS, fill =REGION, color =REGION)) + 
+  geom_jitter(width=.05, size =3, alpha=.4) + 
+  theme_classic()
+```
+
+```{r eda-summary}
+ggarrange(p1,p2,p3,p4, 
+          nrow = 2, 
+          ncol =2)
+``` 
+
+# Fit model [random factors]
+
+## Priors 
+
+```{r piors}
+reprod.output |> 
+  group_by(REGION) |> 
+  summarise(mean(REPRODUCTIVE_OUTPUT), 
+            sd(REPRODUCTIVE_OUTPUT))
+
+reprod.output.priors <- prior(normal(21, 2.5), class ="Intercept")
+```
+
+## Models {.tabset}
+
+Hypothesis test will include:
+
+0. Null model
+1. EGG_COUNT ~ 1 + (1| FEMALE)
+2. EGG_COUNT ~ 1 + (1| FEMALE) + (1| POPULATION)
+3. EGG_COUNT ~ 1 + (1| FEMALE) + (1| CLUTCH_ORDER)
+4. EGG_COUNT ~ 1 + (1| FEMALE) + (1| POPULATION) + (1| CLUTCH_ORDER)
+
+### null
+```{r model.null, cache=TRUE}
+f.model.null <- bf(REPRODUCTIVE_OUTPUT ~ 1, 
+                   family = gaussian())
+
+model.null <- brm(f.model.null, 
+                  data =reprod.output, 
+                  prior =reprod.output.priors, 
+                  warmup = 500, 
+                  iter = 5000,
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes",
+                  chains = 2, 
+                  thin = 5, 
+                  control = list(adapt_delta=0.95))
+```
+
+### model1 
+```{r model1, cache=TRUE}
+f.model1 <- bf(REPRODUCTIVE_OUTPUT ~ 1 + (1| FEMALE), 
+                   family = gaussian())
+
+model1 <- brm(f.model1, 
+                  data =reprod.output, 
+                  prior =reprod.output.priors, 
+                  warmup = 500, 
+                  iter = 5000,
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes",
+                  chains = 2, 
+                  thin = 5, 
+                  control = list(adapt_delta=0.95))
+``` 
+
+### model2
+```{r model2, cache=TRUE}
+f.model2 <- bf(REPRODUCTIVE_OUTPUT ~ 1  + (1| FEMALE) + (1| POPULATION), 
+                   family = gaussian())
+
+model2 <- brm(f.model2, 
+                  data =reprod.output, 
+                  prior =reprod.output.priors, 
+                  warmup = 500, 
+                  iter = 5000,
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes",
+                  chains = 2, 
+                  thin = 5, 
+                  control = list(adapt_delta=0.95))
+``` 
+
+### model3 
+```{r model3, cache=TRUE}
+f.model3 <- bf(REPRODUCTIVE_OUTPUT ~ 1 + (1| FEMALE) + (1| CLUTCH_ORDER), 
+                   family = gaussian())
+
+model3 <- brm(f.model3, 
+                  data =reprod.output, 
+                  prior =reprod.output.priors, 
+                  warmup = 500, 
+                  iter = 5000,
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes",
+                  chains = 2, 
+                  thin = 5, 
+                  control = list(adapt_delta=0.95))
+``` 
+
+### model4 
+```{r model4, cache=TRUE}
+f.model4 <- bf(REPRODUCTIVE_OUTPUT ~ 1 + (1| FEMALE) + (1| POPULATION) + (1| CLUTCH_ORDER), 
+                   family = gaussian())
+
+model4 <- brm(f.model4, 
+                  data =reprod.output, 
+                  prior =reprod.output.priors, 
+                  warmup = 500, 
+                  iter = 5000,
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes",
+                  chains = 2, 
+                  thin = 5, 
+                  control = list(adapt_delta=0.95))
+```
+
+### {-} 
+
+## LOO 
+```{r loo-comparison}
+loo(model.null, model1, model2, model3, model4)
+```
+
+# fit model [fixed + random factors] {.tabset}
+
+## priors 
+```{r}
+reprod.output |> 
+  group_by(REGION) |> 
+  summarise(mean(REPRODUCTIVE_OUTPUT), 
+            sd(REPRODUCTIVE_OUTPUT))
+
+reprod.output.priors <- prior(normal(21, 2.5), class ="Intercept") + 
+  prior(normal(0, 3), class="b") + 
+  prior(student_t(3, 0, 5.33), class="sigma")
+```
+
+## Model3.1 {.tabset}
+
+### Model3.1
+```{r model3.1, cache=TRUE}
+f.model3.1 <- bf(REPRODUCTIVE_OUTPUT ~ 1 + REGION + 
+                   scale(FEMALE_MASS, center=TRUE, scale=TRUE) + 
+                   scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE) + 
+                   (1| FEMALE) + (1| CLUTCH_ORDER), 
+                   family = gaussian())
+
+model3.1 <- brm(f.model3.1, 
+                  data =reprod.output, 
+                  prior =reprod.output.priors, 
+                  warmup = 500, 
+                  iter = 5000,
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes",
+                  chains = 2, 
+                  thin = 10, 
+                  control = list(adapt_delta=0.95))
+saveRDS(model3.1, file="./09.Reproductive_output_files/model3.1.RDS")
+```
+
+### Model validation [DHARMa] 
+```{r model3.1-validation}
+pp_check(model3.1, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+
+preds <- posterior_predict(model3.1, ndraws=250, summary=FALSE)
+model3.1_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = reprod.output$REPRODUCTIVE_OUTPUT, 
+                              fittedPredictedResponse = apply(preds, 2, median), 
+                              integerResponse = 'student')
+plot(model3.1_resids); testDispersion(model3.1_resids) 
+
+model3.1 |> conditional_effects(spaghetti = TRUE, ndraws =200 )
+```
+
+### Model performance 
+
+```{r model3.1-performance}
+stan_trace(model3.1$fit) 
+stan_ac(model3.1$fit) 
+stan_rhat(model3.1$fit) 
+stan_ess(model3.1$fit)
+stan_dens(model3.1$fit, separate_chains = TRUE)
+```
+
+### {-} 
+
+## Model3.1_gamma {.tabset}
+
+### Model3.1_gamma 
+```{r model3.1_gamma, cache=TRUE}
+reprod.output.priors <- prior(normal(21, 2.5), class ="Intercept") + 
+  prior(normal(0, 3), class="b")
+
+f.model3.1_gamma <- bf(REPRODUCTIVE_OUTPUT ~ 1 + REGION + 
+                   scale(FEMALE_MASS, center=TRUE, scale=TRUE) + 
+                   scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE) + 
+                   (1| FEMALE) + (1| CLUTCH_ORDER), 
+                   family = Gamma(link="log"))
+
+model3.1_gamma <- brm(f.model3.1_gamma, 
+                  data =reprod.output, 
+                  prior =reprod.output.priors, 
+                  warmup = 500, 
+                  iter = 5000,
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes",
+                  chains = 2, 
+                  thin = 5, 
+                  control = list(adapt_delta=0.95))
+saveRDS(model3.1_gamma, file="./09.Reproductive_output_files/model3.1_gamma.RDS")
+```
+
+### Model validation [DHARMa] 
+```{r model3.1_gamma-validation}
+pp_check(model3.1_gamma, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+
+preds <- posterior_predict(model3.1_gamma, ndraws=250, summary=FALSE)
+model3.1_gamma_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = reprod.output$REPRODUCTIVE_OUTPUT, 
+                              fittedPredictedResponse = apply(preds, 2, median), 
+                              integerResponse = 'student')
+plot(model3.1_gamma_resids); testDispersion(model3.1_gamma_resids) 
+
+```
+
+### {-}
+
+## Model3.1_log
+
+```{r model3.1_log, cache=TRUE}
+f.model3.1_log <- bf(REPRODUCTIVE_OUTPUT ~ 1 + REGION + 
+                   scale(FEMALE_MASS, center=TRUE, scale=TRUE) + 
+                   scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE) + 
+                   (1| FEMALE) + (1| CLUTCH_ORDER), 
+                   family = gaussian(link="log"))
+
+model3.1_log <- brm(f.model3.1_log, 
+                  data =reprod.output, 
+                  prior =reprod.output.priors, 
+                  warmup = 500, 
+                  iter = 5000,
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes",
+                  chains = 2, 
+                  thin = 5, 
+                  control = list(adapt_delta=0.95))
+saveRDS(model3.1_log, file="./09.Reproductive_output_files/model3.1_log.RDS")
+```
+
+### Model validation [DHARMa] 
+```{r model3.1_log-validation}
+pp_check(model3.1_log, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+
+preds <- posterior_predict(model3.1_log, ndraws=250, summary=FALSE)
+model3.1_log_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = reprod.output$REPRODUCTIVE_OUTPUT, 
+                              fittedPredictedResponse = apply(preds, 2, median), 
+                              integerResponse = 'student')
+plot(model3.1_log_resids); testDispersion(model3.1_log_resids) 
+
+```
+
+### {-} 
+
+## {-}
+
+# Partial plots 
+
+```{r model3.1-partial plots }
+model3.1 |> 
+  conditional_effects(spaghetti = TRUE, ndraws=200)
+```
+
+# Model investigation {.tabset}
+
+## summary 
+
+```{r summar}
+summary(model3.1) 
+```
+
+## ANOVA 
+
+```{r Anova}
+pes_posterior <- eta_squared_posterior(model3.1,
+  ndraws = 500, # how many samples from the PPD?
+  partial = TRUE, # partial eta squared
+  # type 3 SS
+  ss_function = car::Anova, type = 3,
+  verbose = FALSE
+) 
+
+bayestestR::describe_posterior(pes_posterior, rope_ci=0.89)
+```
+
+
+## HDCI
+
+```{r r-squared}
+model3.1 |> bayes_R2(summary = FALSE) |> median_hdci(.width = 0.89)
+```
+
+## tidyMCMC 
+
+```{r tidy}
+tidyMCMC(model3.1, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval', conf.level = 0.89)
+```
+
+## gather draws 
+
+```{r gather_draws}
+#model3.1 |> get_variables()
+model3.1 |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+  median_hdci(.width=0.89)
+``` 
+
+## bayesplot 
+
+```{r bayesplot-1}
+model3.1 |> mcmc_plot(type='intervals')
+```
+
+## emmeans - pariwise 
+
+```{r emmeans-pairwise}
+model3.1 |> emmeans(pairwise ~ REGION, type="response") |> summary()
+
+```
+
+## probabilities 
+```{r probabilities}
+mtsqst <- model3.1 |> emmeans(pairwise ~ REGION)
+mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
+mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
+```
+## {-} 
+
+# Summary figure 
+```{r summary-figure-1}
+var <- get_variables(model3.1)
+var1 <- get_variables(model3.1)[c(1:2)] 
+
+int_draws_spread <- model3.1 |> spread_draws(!!!syms(var1)) 
+
+int_draws_spread2 <- int_draws_spread |> 
+  gather_draws(b_Intercept, b_REGIONleading) |> 
+  left_join(int_draws_spread, by = c(".chain",".iteration",".draw"))
+
+
+int_draws <- int_draws_spread2 |> 
+  mutate(RCore = case_when(`.variable` == 'b_Intercept' ~ 
+                             `.value`, 
+                           `.variable` != 'b_Intercept' ~ 
+                             `.value` + b_Intercept), 
+         
+         RLeading = case_when(`.variable` == 'b_Intercept' ~ 
+                           `.value` + b_REGIONleading, 
+                         `.variable` == 'b_REGIONleading' ~ 
+                           `.value` + b_Intercept + `b_REGIONleading`))
+
+int_draws_plotting <- int_draws |> 
+  pivot_longer(cols = starts_with("R"), 
+               names_to = "REGION", 
+               values_to = "REPRODUCTIVE_OUTPUT") |> 
+  transmute(LATITUDE = case_when(`.variable` == "b_Intercept" ~ "Low latitude", 
+                                 `.variable` == "b_REGIONleading" ~ "High latitude"),
+            REPRODUCTIVE_OUTPUT = REPRODUCTIVE_OUTPUT, 
+            LATITUDE_B = LATITUDE,
+            chain = `.chain`, 
+            iteration = `.iteration`, 
+            draw_n = `.draw`) 
+
+reprod.output.plot <- int_draws_plotting |> 
+  ggplot(aes(x=LATITUDE, y=REPRODUCTIVE_OUTPUT)) + 
+  #geom_hline(yintercept = 0, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
+  stat_halfeye(aes(fill = LATITUDE, fill_ramp = after_stat(level)), 
+               point_interval = mode_hdci, 
+               .width = c(.66, .89, .95)) + 
+  scale_fill_ramp_discrete(na.translate=FALSE, 
+                           labels =c("0.95","0.89","0.66"), 
+                           name = "Credible interval") +
+  scale_fill_manual(values = c("lightskyblue","coral"))+ 
+  #scale_y_continuous(limits=c(0,2), breaks = seq(0,2, .5))+
+  ylab("REPRODUCTIVE OUTPUT") + xlab("EXPERIMENTAL GROUP") +
+  scale_x_discrete(labels = c("Low latitude" = paste0("Low latitude"), 
+                              "High latitude" = paste0("High latitude"))) +
+  #annotate("text", x=6.8,y=1.4, label = paste0(round(mean(growth3$MASS), 2)," (mm)"), color="grey58") +
+  coord_flip() + 
+  theme_classic() + 
+  guides(fill = "none") + 
+  theme(legend.position = c(.15,.86), 
+        axis.title.y = element_text(margin = margin(r =0.3, unit = "in"), size = 12), 
+        axis.title.x = element_text(margin = margin(t = 0.3, unit="in"), size =12), 
+        legend.key = element_rect(color="black", size=1.25), 
+        legend.background = element_rect(fill = alpha("blue", 0))); reprod.output.plot 
+```

@@ -111,11 +111,11 @@ ggarrange(p1,p2,p3,
           ncol=3)
 ```
 
-# Fit model [random factors] {.tabset}
+# Fit model [random factors] 
 
 First we will place random factors only within out model and see if they do a good job explaining the variance within our model. We will also be include piors which will be based off of out length data.
 
-###  Prior investigation 
+##  Prior investigation 
 ```{r }
 ctmax2 |> 
   group_by(REGION,DEV_TEMP) |> 
@@ -124,28 +124,19 @@ ctmax2 |>
 
 ```
 
-## Null {.tabset}
-
-###  Prior investigation 
-```{r }
-ctmax2 |> 
-  group_by(REGION,DEV_TEMP) |> 
-  summarise(mean(na.omit(LOE_MEAN_EAS)), 
-            sd(na.omit(LOE_MEAN_EAS))) 
-
-```
-
-### Priors 
-```{r priors-null}
-model.re.null.formula <- bf(LOE_MEAN_EAS ~ 1 + (1|TANK) + (1|FEMALE))
-get_prior(model.re.null.formula, data=ctmax2)
+## Priors 
+```{r}
 ctmax.priors.re <- prior(normal(37.0, 0.30), class="Intercept") +  
   prior(student_t(3, 0, 0.1975), class = "sigma")
 ```
 
-### Fit model
+## Models {.tabset}
+
+### Null
 ```{r fit-model-null, cache=TRUE} 
-model.re.null <- brm(model.re.null.formula,
+f.model.null <- bf(LOE_MEAN_EAS ~ 1, 
+                   fanily=gaussian())
+model.null <- brm(f.model.null,
                    data = ctmax2, 
                    prior = ctmax.priors.re,
                    warmup = 500, 
@@ -157,34 +148,15 @@ model.re.null <- brm(model.re.null.formula,
                    chains = 2, 
                    thin = 5, 
                    control = list(adapt_delta=0.95)) 
-prior_summary(model.re.null) 
-saveRDS(model.re.null, file="./04.CTmax_data_analysis_files/model.randomfactors.null.RDS")
+saveRDS(model.null, file="./04.CTmax_data_analysis_files/model.null.RDS")
 ```
 
-### model validation [random factors]
-```{r model-diag-null}
-stan_trace(model.re.null$fit)
-stan_ac(model.re.null$fit) 
-stan_rhat(model.re.null$fit) 
-stan_ess(model.re.null$fit)
-stan_dens(model.re.null$fit, separate_chains = TRUE)
-```
+### Model1
 
-### {-}
-
-## Model-1 {.tabset}
-
-### Priors 
-```{r priors-re.0}
-model.re.0.formula <- bf(LOE_MEAN_EAS ~ 1)
-get_prior(model.re.null.formula, data=ctmax2)
-ctmax.priors.re <- prior(normal(37.0, 0.30), class="Intercept") +  
-  prior(student_t(3, 0, 0.1975), class = "sigma")
-```
-
-### Fit model
-```{r fit-model-re.0, cache=TRUE} 
-model.re.0 <- brm(model.re.0.formula,
+```{r fit-model1, cache=TRUE} 
+f.model1 <- bf(LOE_MEAN_EAS ~ 1 + (1| FEMALE) + (1| TANK), 
+               family=gaussian())
+model1 <- brm(f.model1,
                    data = ctmax2, 
                    prior = ctmax.priors.re,
                    warmup = 500, 
@@ -196,43 +168,33 @@ model.re.0 <- brm(model.re.0.formula,
                    chains = 2, 
                    thin = 5, 
                    control = list(adapt_delta=0.95)) 
-prior_summary(model.re.0) 
-saveRDS(model.re.0, file="./04.CTmax_data_analysis_files/model.randomfactors.0.RDS")
+saveRDS(model1, file="./04.CTmax_data_analysis_files/model1.RDS")
 ```
 
-### model validation [random factors]
-```{r model-diag-re.0}
-stan_trace(model.re.0$fit)
-stan_ac(model.re.0$fit) 
-stan_rhat(model.re.0$fit) 
-stan_ess(model.re.0$fit)
-stan_dens(model.re.0$fit, separate_chains = TRUE)
+### Model2
+```{r fit-model2, cache=TRUE}
+f.model2 <- bf(LOE_MEAN_EAS ~ 1 + (1| FEMALE) + (1| TANK) + (1| LEVEL), 
+               family=gaussian())
+model2 <- brm(f.model2,
+                   data = ctmax2, 
+                   prior = ctmax.priors.re,
+                   warmup = 500, 
+                   iter = 5000,
+                   seed=123, 
+                   cores=2, 
+                   save_pars = save_pars(all=TRUE),  
+                   sample_prior = "yes",
+                   chains = 2, 
+                   thin = 5, 
+                   control = list(adapt_delta=0.95))  
+saveRDS(model2, file="./04.CTmax_data_analysis_files/model2.RDS")
 ```
 
-### {-}
-
-## Experiment hypothesis {.tabset}
-
-###  Prior investigation 
-```{r }
-ctmax2 |> 
-  group_by(REGION,DEV_TEMP) |> 
-  summarise(mean(na.omit(LOE_MEAN_EAS)), 
-            sd(na.omit(LOE_MEAN_EAS))) 
-
-```
-
-### Priors 
-```{r priors-exp_pos}
-model.re.exp_pos.formula <- bf(LOE_MEAN_EAS ~ 1 + (1|TANK) + (1|FEMALE) + (1|EXPERIMENT) + (1|EXP_TANK/TRAY_ORD))
-get_prior(model.re.exp_pos.formula, data=ctmax2)
-ctmax.priors.re <- prior(normal(37.0, 0.30), class="Intercept") +  
-  prior(student_t(3, 0, 0.1975), class = "sigma")
-```
-
-### Fit model
-```{r fit-model-exp_pos, cache=TRUE} 
-model.re.exp_pos <- brm(model.re.exp_pos.formula,
+### Model3
+```{r fit-model3-pop, cache=TRUE} 
+f.model3 <- bf(LOE_MEAN_EAS ~ 1 + (1| FEMALE) + (1| EXP_TANK) + (1| TRAY_ORD), 
+               family=gaussian())
+model3 <- brm(f.model3,
                    data = ctmax2, 
                    prior = ctmax.priors.re,
                    warmup = 500, 
@@ -244,43 +206,14 @@ model.re.exp_pos <- brm(model.re.exp_pos.formula,
                    chains = 2, 
                    thin = 5, 
                    control = list(adapt_delta=0.95)) 
-prior_summary(model.re.exp_pos) 
-saveRDS(model.re.exp_pos, file="./04.CTmax_data_analysis_files/model.randomfactors.Experimental.RDS")
+saveRDS(model3, file="./04.CTmax_data_analysis_files/model3.RDS")
 ```
 
-### model validation [random factors]
-```{r model-diag-exp_pos}
-stan_trace(model.re.exp_pos$fit)
-stan_ac(model.re.exp_pos$fit) 
-stan_rhat(model.re.exp_pos$fit) 
-stan_ess(model.re.exp_pos$fit)
-stan_dens(model.re.exp_pos$fit, separate_chains = TRUE)
-```
-
-### {-}
-
-## Population hypothesis {.tabset}
-
-###  Prior investigation 
-```{r }
-ctmax2 |> 
-  group_by(REGION,DEV_TEMP) |> 
-  summarise(mean(na.omit(LOE_MEAN_EAS)), 
-            sd(na.omit(LOE_MEAN_EAS))) 
-
-```
-
-### Priors 
-```{r priors-pop}
-model.re.pop.formula <- bf(LOE_MEAN_EAS ~ 1 + (1|TANK) + (1|FEMALE) + (1|POPULATION))
-get_prior(model.re.pop.formula, data=ctmax2)
-ctmax.priors.re <- prior(normal(37.0, 0.30), class="Intercept") +  
-  prior(student_t(3, 0, 0.1975), class = "sigma")
-```
-
-### Fit model
-```{r fit-model-pop, cache=TRUE} 
-model.re.pop <- brm(model.re.pop.formula,
+### Model4 
+```{r fit-model4-pop, cache=TRUE} 
+f.model4 <- bf(LOE_MEAN_EAS ~ 1 + (1| FEMALE) + (1| EXP_TANK) + (1| TRAY_ORD) + (1| EXPERIMENT), 
+               family=gaussian())
+model4 <- brm(f.model4,
                    data = ctmax2, 
                    prior = ctmax.priors.re,
                    warmup = 500, 
@@ -292,43 +225,15 @@ model.re.pop <- brm(model.re.pop.formula,
                    chains = 2, 
                    thin = 5, 
                    control = list(adapt_delta=0.95)) 
-prior_summary(model.re.pop) 
-saveRDS(model.re.pop, file="./04.CTmax_data_analysis_files/model.randomfactors.Population.RDS")
+saveRDS(model4, file="./04.CTmax_data_analysis_files/model4.RDS")
 ```
 
-### model validation 
-```{r model-diag-pop}
-stan_trace(model.re.pop$fit)
-stan_ac(model.re.pop$fit) 
-stan_rhat(model.re.pop$fit) 
-stan_ess(model.re.pop$fit)
-stan_dens(model.re.pop$fit, separate_chains = TRUE)
-```
 
-### {-}
-
-## All possible {.tabset}
-
-###  Prior investigation 
-```{r }
-ctmax2 |> 
-  group_by(REGION,DEV_TEMP) |> 
-  summarise(mean(na.omit(LOE_MEAN_EAS)), 
-            sd(na.omit(LOE_MEAN_EAS))) 
-
-```
-
-### Priors 
-```{r priors-all}
-model.re.all.formula <- bf(LOE_MEAN_EAS ~ 1 + (1|TANK) + (1|FEMALE)+ (1|EXPERIMENT) + (1|EXP_TANK/TRAY_ORD) + (1|POPULATION))
-get_prior(model.re.all.formula, data=ctmax2)
-ctmax.priors.re <- prior(normal(37.0, 0.30), class="Intercept") +  
-  prior(student_t(3, 0, 0.1975), class = "sigma")
-```
-
-### Fit model
-```{r fit-model-all, cache=TRUE} 
-model.re.all <- brm(model.re.all.formula,
+### Model5
+```{r fit-model5, cache=TRUE} 
+f.model5 <- bf(LOE_MEAN_EAS ~ 1 + (1| FEMALE) + (1| TANK) + (1| LEVEL) + (1| POPULATION), 
+               family=gaussian())
+model5 <- brm(f.model5,
                    data = ctmax2, 
                    prior = ctmax.priors.re,
                    warmup = 500, 
@@ -340,35 +245,48 @@ model.re.all <- brm(model.re.all.formula,
                    chains = 2, 
                    thin = 5, 
                    control = list(adapt_delta=0.95)) 
-prior_summary(model.re.all) 
-saveRDS(model.re.all, file="./04.CTmax_data_analysis_files/model.randomfactors.ALL.RDS")
-```
-### model validation [random factors]
-```{r model-diag-all}
-stan_trace(model.re.all$fit)
-stan_ac(model.re.all$fit) 
-stan_rhat(model.re.all$fit) 
-stan_ess(model.re.all$fit)
-stan_dens(model.re.all$fit, separate_chains = TRUE)
+saveRDS(model5, file="./04.CTmax_data_analysis_files/model5.RDS")
 ```
 
-### {-}
-
-## {-}
-
-# LOO
+### Model6 
+```{r fit-model6, cache=TRUE} 
+f.model6 <- bf(LOE_MEAN_EAS ~ 1 + (1| FEMALE) + (1| TANK) + (1| LEVEL) + (1| POPULATION) + (1| CLUTCH_ORDER), 
+               family=gaussian())
+model6 <- brm(f.model6,
+                   data = ctmax2, 
+                   prior = ctmax.priors.re,
+                   warmup = 500, 
+                   iter = 5000,
+                   seed=123, 
+                   cores=2, 
+                   save_pars = save_pars(all=TRUE),  
+                   sample_prior = "yes",
+                   chains = 2, 
+                   thin = 5, 
+                   control = list(adapt_delta=0.95)) 
+saveRDS(model6, file="./04.CTmax_data_analysis_files/model6.RDS")
+```
+### LOO
 ```{r model-comparisons-2, cache=TRUE}
-LOO(model.re.0,model.re.null,model.re.exp_pos,model.re.pop,model.re.all, 
-    moment_match = TRUE) 
+LOO(model.null,model1,model2,model3,model4,model5,model6) 
 ```
 
-# Fit model {.tabset}
+### {-}
 
-Based on previous analysis that has been done we will be fitting a single model. This model will take into across the interaction between **REGION** * **DEV_TEMP**, **MASS**, and **EXPERIMENT**. **EXPERIMENT** is included to see if putting the fish in respiration chambers had an influence on the final CTmax temperatures 
+# Fit model [fixed factors] 
 
-## Model1.basic {.tabset}
+## Collinearity 
+```{r collinearity}
+col.lm <- lm(LOE_MEAN_EAS ~ 1 + DEV_TEMP+REGION + 
+                         scale(FEMALE_MASS, center=TRUE, scale=TRUE) + 
+                         scale(DENSITY, center=TRUE, scale=TRUE) + 
+                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
+                         scale(LENGTH, center=TRUE, scale=TRUE), 
+                data = growth3)
+vif(col.lm)
+```
 
-###  Prior investigation 
+##  Prior investigation 
 ```{r }
 ctmax2 |> 
   group_by(REGION,DEV_TEMP) |> 
@@ -377,23 +295,22 @@ ctmax2 |>
 
 ```
 
-### Priors and formula
-```{r priors-model1.ctmax}
-model1.ctmax.formula <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
-                       scale(MASS, center=TRUE, scale=TRUE) + 
-                       + (1|TANK) + (1|FEMALE)+ (1|EXPERIMENT) + (1|EXP_TANK/TRAY_ORD) + (1|POPULATION), 
-                     family=gaussian())
-
-get_prior(model1.ctmax.formula, data=ctmax2)
-
-ctmax.priors <- prior(normal(37.0, 0.30), class="Intercept") +  
-  prior(normal(0, 0.5), class="b") + # check will likely need to be made tighter
+## Priors 
+```{r}
+ctmax.priors.re <- prior(normal(37.0, 0.30), class="Intercept") +  
+  prior(normal(0, 0.05), class ="b") +
   prior(student_t(3, 0, 0.1975), class = "sigma")
 ```
 
-### Fit Model
-```{r fit-model-model1.ctmax, cache=TRUE}
-model1.ctmax <- brm(model1.ctmax.fomula,
+## Models {.tabset}
+### Model1.1 {.tabset}
+```{r model1.1, cache=TRUE}
+f.model1.1 <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
+                       scale(MASS, center=TRUE, scale=TRUE) + 
+                       (1|FEMALE) + (1 |TANK), 
+                     family=gaussian())
+
+model1.1 <- brm(f.model1.1,
               data = ctmax2,
               prior =ctmax.priors,
               warmup = 500, 
@@ -405,136 +322,91 @@ model1.ctmax <- brm(model1.ctmax.fomula,
               chains = 2, 
               thin = 5, 
               control = list(adapt_delta=0.95))
-saveRDS(model1.ctmax, file="./04.CTmax_data_analysis_files/model1.ctmax.RDS")
+saveRDS(model1.1, file="./04.CTmax_data_analysis_files/model1.1.RDS")
 ```
 
-### stan plots
-```{r mcmc-diag-model1.ctmax, fig.height=9}
-stan_trace(model1.ctmax$fit, allpars=TRUE)
-stan_ac(model1.ctmax$fit) 
-stan_rhat(model1.ctmax$fit) 
-stan_ess(model1.ctmax$fit)
-stan_dens(model1.ctmax$fit, separate_chains = TRUE)
-```
-
-The random factor **EXPERIMENT** seems to be causing issues and will therefore be removed the model will be run again. 
-
-### {-}
-
-## Model2.basic {.tabset}
-
-### Priors and formula
-```{r priors-model2.ctmax}
-model2.ctmax.formula <- bf(LOE_MEAN_EAS ~ 1 + 
-                       DEV_TEMP*REGION + 
-                       scale(MASS, center=TRUE, scale=TRUE) + 
-                       (1|TANK) + (1|FEMALE)+ (1|EXP_TANK/TRAY_ORD) + (1|POPULATION), 
-                     family=gaussian())
-
-get_prior(model2.ctmax.formula, data=ctmax2)
-
-ctmax.priors <- prior(normal(37.0, 0.30), class="Intercept") +  
-  prior(normal(0, 0.5), class="b") + # check will likely need to be made tighter
-  prior(student_t(3, 0, 0.1975), class = "sigma")
-```
-
-### Model-2
-```{r fit-model-model2.ctmax, cache=TRUE}
-model2.ctmax <- brm(model2.ctmax.formula,
-              data = ctmax2,
-              prior =ctmax.priors,
-              warmup = 500, 
-              iter = 5000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              sample_prior= "yes",
-              chains = 2, 
-              thin = 5, 
-              control = list(adapt_delta=0.95))
-saveRDS(model2.ctmax, file="./04.CTmax_data_analysis_files/model2.ctmax.RDS")
-```
-
-#### stan plots
-```{r mcmc-diag-model2.ctmax, fig.height=9}
-stan_trace(model2.ctmax$fit, allpars=TRUE)
-stan_ac(model2.ctmax$fit) 
-stan_rhat(model2.ctmax$fit) 
-stan_ess(model2.ctmax$fit)
-stan_dens(model2.ctmax$fit, separate_chains = TRUE)
-```
-
-
-## Model3.geo {.tabset}
-
-### Priors and formula
-```{r priors-model.geo.ctmax.geo}
-model2.ctmax.geo.formula <- bf(LOE_MEAN_EAS ~ 1 + 
-                       DEV_TEMP*REGION + 
-                       scale(MASS, center=TRUE, scale=TRUE) + 
-                       scale(FEMALE_LAT, center=TRUE, scale=TRUE) +
-                       (1|TANK) + (1|FEMALE)+ (1|EXP_TANK/TRAY_ORD) + (1|POPULATION), 
-                     family=gaussian())
-
-get_prior(model2.ctmax.geo.formula, data=ctmax2)
-
-ctmax.priors <- prior(normal(37.0, 0.30), class="Intercept") +  
-  prior(normal(0, 0.5), class="b") + # check will likely need to be made tighter
-  prior(student_t(3, 0, 0.1975), class = "sigma")
-```
-
-### Model-2
-```{r fit-model-model.geo.ctmax, cache=TRUE}
-model.geo.ctmax <- brm(model2.ctmax.geo.formula,
-              data = ctmax2,
-              prior =ctmax.priors,
-              warmup = 500, 
-              iter = 5000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              sample_prior= "yes",
-              chains = 2, 
-              thin = 5, 
-              control = list(adapt_delta=0.95))
-saveRDS(model.geo.ctmax, file="./04.CTmax_data_analysis_files/model.geo.ctmax.RDS")
-```
-
-#### stan plots
-```{r mcmc-diag-model.geo.ctmax, fig.height=9}
-stan_trace(model.geo.ctmax$fit, allpars=TRUE)
-stan_ac(model.geo.ctmax$fit) 
-stan_rhat(model.geo.ctmax$fit) 
-stan_ess(model.geo.ctmax$fit)
-stan_dens(model.geo.ctmax$fit, separate_chains = TRUE)
-```
-
-# LOO
-```{r model-comparisons-3, cache=TRUE}
-LOO(model1.ctmax,model2.ctmax,model.geo.ctmax, 
-    moment_match = TRUE) 
-```
-
-
-# model diagnositics 
-
-```{r model-diag-1}
+#### DHARMa 
+```{r model1.1-dharma}
 #--- distribution check ---#
-pp_check(model2.ctmax, type = 'dens_overlay')
+pp_check(model1.1, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
 
 #--- DHARMa checks ---#
-preds <- posterior_predict(model2.ctmax, ndraws=250, summary=FALSE)
-model2.ctmax.resids <- createDHARMa(simulatedResponse = t(preds), 
+preds <- posterior_predict(model1.1, ndraws=250, summary=FALSE)
+model1.1_resids <- createDHARMa(simulatedResponse = t(preds), 
                               observedResponse = na.omit(ctmax2$LOE_MEAN_EAS), 
                               fittedPredictedResponse = apply(preds, 2, mean), 
                               integerResponse = 'student')
-plot(model2.ctmax.resids) ; testDispersion(model2.ctmax.resids)
+plot(model1.1_resids) ; testDispersion(model1.1_resids)
 ```
+
+#### MCMC diagnositics 
+```{r mcmc-diag-model1.1, fig.height=9}
+stan_trace(model1.1$fit, allpars=TRUE)
+stan_ac(model1.1$fit) 
+stan_rhat(model1.1$fit) 
+stan_ess(model1.1$fit)
+stan_dens(model1.1$fit, separate_chains = TRUE)
+```
+#### {-}
+
+### Model1.2 {.tabset}
+```{r Model1.2}
+f.model1.2 <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
+                   scale(FEMALE_LAT, center=TRUE, scale=TRUE) +
+                   scale(MASS, center=TRUE, scale=TRUE) +
+                   (1|FEMALE) + (1 |TANK),
+                 family=gaussian())
+
+model1.2 <- brm(f.model1.2,
+              data = ctmax2,
+              prior =ctmax.priors,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior= "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95))
+saveRDS(model1.2, file="./04.CTmax_data_analysis_files/model1.2.RDS")
+```
+
+#### DHARMa 
+```{r model1.2-dharma}
+#--- distribution check ---#
+pp_check(model1.2, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+
+#--- DHARMa checks ---#
+preds <- posterior_predict(model1.2, ndraws=250, summary=FALSE)
+model1.2_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = na.omit(ctmax2$LOE_MEAN_EAS), 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.2_resids) ; testDispersion(model1.2_resids)
+```
+
+#### MCMC diagnositics 
+```{r mcmc-diag-model1.2, fig.height=9}
+stan_trace(model1.2$fit, allpars=TRUE)
+stan_ac(model1.2$fit) 
+stan_rhat(model1.2$fit) 
+stan_ess(model1.2$fit)
+stan_dens(model1.2$fit, separate_chains = TRUE)
+```
+#### {-}
+
+### LOO
+```{r model-comparisons-3, cache=TRUE}
+LOO(model1.1,model1.2) 
+```
+
+### {- }
 
 # partial plots 
 
 ```{r partial-plots-cond-eff-1}
-model2.ctmax |> 
+model1.1 |> 
   conditional_effects(spaghetti = TRUE, ndraws=200) 
 ``` 
 
@@ -543,52 +415,48 @@ model2.ctmax |>
 ## summary 
 
 ```{r summary-100}
-summary(model2.ctmax)
+summary(model1.1)
 ```
 
 ## R2 
 
 ```{r r-squared}
-model2.ctmax |> bayes_R2(summary = FALSE) |> median_hdci()
+model1.1 |> bayes_R2(summary = FALSE) |> median_hdci()
 ```
 
 ## tidyMCMC 
 
 ```{r tidy}
-tidyMCMC(model2.ctmax, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+tidyMCMC(model1.1, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
 ```
 
 ## gather draws 
 
 ```{r gather_draws}
-#model2.ctmax |> get_variables()
-model2.ctmax |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+#model1.1 |> get_variables()
+model1.1 |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
   median_hdci()
 ``` 
 
 ## bayesplot 
 
 ```{r bayesplot-1}
-model2.ctmax |> mcmc_plot(type='intervals')
+model1.1 |> mcmc_plot(type='intervals')
 ```
 
 ## emmeans - pariwise 
 
 ```{r emmeans-pairwise}
-model2.ctmax |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
+model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
 
-model2.ctmax |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> summary()
+model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> summary()
 ```
 
 ## probabilities 
 ```{r probabilities}
-#model2.ctmax |> emmeans(~ REGION | DEV_TEMP, at = list(DEV_TEMP = 31.5, length.out = 10)) |> pairs(type = 'response')
-prob <- model2.ctmax |> emmeans(pairwise ~ REGION*DEV_TEMP)
-prob2 <- prob$contrasts |> gather_emmeans_draws()
-
-model2.ctmax.em <- emmeans(model2.ctmax, pairwise ~ REGION*DEV_TEMP)
-# will have a negative effect
-model2.ctmax.em$contrasts |> gather_emmeans_draws() %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value<0)/n())
+mtsqst <- model1.1 |> emmeans(pairwise ~ REGION)
+mtsqrt1 <- mtsqst$contrasts |> gather_emmeans_draws()
+mtsqrt1 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 ```
 ## {-}
 
@@ -596,10 +464,10 @@ model2.ctmax.em$contrasts |> gather_emmeans_draws() %>% group_by(contrast) %>% d
 # summary figure 
 
 ```{r summary-figure-1, warning=FALSE}
-var <- get_variables(model2.ctmax)
-var1 <- get_variables(model2.ctmax)[c(1:4,6,7)] 
+var <- get_variables(model1.1)
+var1 <- get_variables(model1.1)[c(1:4,6,7)] 
 
-int_draws_spread <- model2.ctmax |> spread_draws(!!!syms(var1)) 
+int_draws_spread <- model1.1 |> spread_draws(!!!syms(var1)) 
 
 int_draws_spread2 <- int_draws_spread |> 
   gather_draws(b_Intercept, b_REGIONleading) |> 

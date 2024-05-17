@@ -119,14 +119,17 @@ Hypothesis test will include:
 3. EGG_COUNT ~ 1 + (1| FEMALE) + (1| CLUTCH_ORDER) 
 4. EGG_COUNT ~ 1 + (1| FEMALE) + (1| POPULATION) + (1| CLUTCH_ORDER)
 
-# Priors 
+## Prior investigation
 
 ```{r prior-investigation}
 clutch_data2 |> 
   group_by(REGION) |> 
   summarise(mean(na.omit(EGG_COUNT)), 
             sd(na.omit(EGG_COUNT))) 
+```
 
+## Priors
+```{r }
 eggcount.priors <- prior(normal(425, 100), class="Intercept") 
 ```
 
@@ -262,16 +265,16 @@ model4 <- brm(f.model4,
 saveRDS(model4 , file="./05.Reproductive_metrics_files/model4_eggcount.RDS")
 ```
 
-### {-}
-
-## LOO
+### LOO
 ```{r model-comparisons-re}
 LOO(model.null, model1, model2, model3, model4) 
 ```
 
+### {-}
+
 The model with clutch order scores the best here, but does not perform well in models below. Random factors used below will contain the random factor(s) in **model2.eggcount.re**.
 
-# Fit model [fixed factors] {.tabset}
+# Fit model [fixed factors] 
 
 Before testing models a quick analysis of collinearity will be tested due to the likely hood of CLUTCH_ORDER and DAYS_IN_TREATMENT being correlated to each other
 
@@ -298,27 +301,29 @@ Two different hypotheses will be tested:
 
 ** Notice the interaction term in the second model
 
-## Priors {.tabset}
+## Priors investigation
 ```{r Priors-classb}
 clutch_data2 |> 
   group_by(REGION) |> 
   summarise(mean(na.omit(EGG_COUNT)), 
             sd(na.omit(EGG_COUNT))) 
+```
 
+## Priors
+```{r }
 eggcount.priors <- prior(normal(425, 100), class="Intercept") +  
   prior(normal(0, 40), class="b")
 ```
 
-### Model1.1
-```{r model1.1}
+## Models {.tabset}
+### Model1.1 {.tabset}  
+```{r fit-model1.1, cache=TRUE}
 f.model1.1 <- bf(EGG_COUNT ~ 1 + REGION + 
                        scale(FEMALE_MASS, center=TRUE, scale=TRUE) +
                        scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE) +
-                       (1| FEMALE) + (1|POPULATION) + (1|CLUTCH_ORDER), 
+                       (1| FEMALE), 
                        family=poisson())
-```
 
-```{r fit-model1.1, cache=TRUE}
 model1.1 <- brm(f.model1.1,
               data = clutch_data2, 
               prior = eggcount.priors,
@@ -333,16 +338,42 @@ model1.1 <- brm(f.model1.1,
               control = list(adapt_delta=0.99))
 saveRDS(model1.1, file="./05.Reproductive_metrics_files/model1.1_eggcount.RDS")
 ```
-### Model 1.2
 
-```{r priors-fixed2}
-f.model1.2 <- bf(EGG_COUNT ~ 1 + REGION*scale(MALE_MASS, center=TRUE, scale=TRUE) + 
-                       scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE) +
-                       (1| FEMALE) + (1|POPULATION) + (1|CLUTCH_ORDER), 
-                     family=poisson())
+#### Model performance
+```{r fit-model2-diag, fig.height=9}
+stan_trace(model1.1$fit)
+stan_ac(model1.1$fit) 
+stan_rhat(model1.1$fit) 
+stan_ess(model1.1$fit)
+stan_dens(model1.1$fit, separate_chains = TRUE)
 ```
 
+#### Model diagnositics 
+
+```{r diag-1}
+#--- distribution check ---#
+pp_check(model1.1, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+```
+
+```{r diag-2}
+preds <- posterior_predict(model1.1, ndraws=250, summary=FALSE)
+model1.1_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = na.omit(clutch_data2$EGG_COUNT), 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.1_resids) ; testDispersion(model1.1_resids)
+``` 
+
+#### {-}
+
+### Model 1.2 {.tabset}
+
 ```{r fit-model2.eggcount, cache=TRUE}
+f.model1.2 <- bf(EGG_COUNT ~ 1 + REGION*scale(FEMALE_MASS, center=TRUE, scale=TRUE) + 
+                       scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE) +
+                       (1| FEMALE), 
+                     family=poisson())
+
 model1.2 <- brm(f.model1.2,
               data = clutch_data2, 
               prior = eggcount.priors,
@@ -358,39 +389,41 @@ model1.2 <- brm(f.model1.2,
 saveRDS(model1.2, file="./05.Reproductive_metrics_files/model1.2_eggcount.RDS")
 ```
 
-### {-}
-
-# LOO
-```{r model-comparisons-2}
-LOO(model1.1, model1.2) 
-#reloo=TRUE) 
-#moment_match = TRUE
+#### Model performance
+```{r fit-model1.2-diag, fig.height=9}
+stan_trace(model1.2$fit)
+stan_ac(model1.2$fit) 
+stan_rhat(model1.2$fit) 
+stan_ess(model1.2$fit)
+stan_dens(model1.2$fit, separate_chains = TRUE)
 ```
 
-# Model performance
-```{r fit-model2-diag, fig.height=9}
-stan_trace(model1.1$fit)
-stan_ac(model1.1$fit) 
-stan_rhat(model1.1$fit) 
-stan_ess(model1.1$fit)
-stan_dens(model1.1$fit, separate_chains = TRUE)
-```
+#### Model diagnositics 
 
-# Model diagnositics 
-
-```{r diag-1}
+```{r diag-1.2}
 #--- distribution check ---#
-pp_check(model1.1, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
-```
+pp_check(model1.2, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
 
-```{r diag-2}
-preds <- posterior_predict(model1.1, ndraws=250, summary=FALSE)
-model1.1_resids <- createDHARMa(simulatedResponse = t(preds), 
+preds <- posterior_predict(model1.2, ndraws=250, summary=FALSE)
+model1.2_resids <- createDHARMa(simulatedResponse = t(preds), 
                               observedResponse = na.omit(clutch_data2$EGG_COUNT), 
                               fittedPredictedResponse = apply(preds, 2, mean), 
                               integerResponse = 'student')
-plot(model1.1_resids) ; testDispersion(model1.1_resids)
+plot(model1.2_resids) ; testDispersion(model1.2_resids)
 ``` 
+
+#### {-} 
+
+
+### LOO
+```{r model-comparisons-2}
+LOO(model1.1, model1.2) 
+```
+
+### {-}
+
+
+
 
 # Partial effects plots 
 
@@ -441,7 +474,6 @@ model1.1 |> emmeans(pairwise ~ REGION, type="response") |> summary()
 
 ## probabilities 
 ```{r probabilities}
-#model2.eggcount |> emmeans(~ REGION | DEV_TEMP, at = list(DEV_TEMP = 31.5, length.out = 10)) |> pairs(type = 'response')
 mtsqst <- model1.1 |> emmeans(pairwise ~ REGION)
 mtsqrt1 <- mtsqst$contrasts |> gather_emmeans_draws()
 mtsqrt1 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
@@ -514,8 +546,7 @@ ggplot(clutch_data2, aes(FEMALE_MASS))+
   geom_dotplot() + 
   geom_density() +
   facet_wrap(~REGION) + 
-  ylim(0,0.15) + 
-  ggtitle("FEMALE MASS")
+  ylim(0,0.15)
 ```
 
 

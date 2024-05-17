@@ -75,6 +75,16 @@ clutch_data <- read_delim("import_files/clutch_data_2022_2023.txt",
          PROJECT_CODE == "7") |> 
   drop_na(EGG_COUNT)
 
+clutch_data2 <- clutch_data |> 
+  mutate(CLUTCH_NUMBER = as.factor(CLUTCH_NUMBER), 
+         MALE = factor(MALE), 
+         FEMALE = factor(FEMALE), 
+         REGION = factor(REGION), 
+         POPULATION = factor(POPULATION),
+         CLUTCH_ORDER = factor(CLUTCH_ORDER),
+         DATE_OF_HATCH = as.Date(DATE_OF_HATCH, format = "%d/%m/%Y"),
+         FEMALE_MASS = coalesce(FEMALE_MASS, MALE_MASS))
+
 hmass2 <- hmass |> 
   mutate(CLUTCH_NUMBER = factor(CLUTCH_NUMBER), 
          MALE = factor(MALE), 
@@ -82,11 +92,13 @@ hmass2 <- hmass |>
          REGION = factor(REGION), 
          POPULATION = factor(POPULATION),
          CLUTCH_ORDER = factor(CLUTCH_ORDER),
-         cMALE_MASS = scale(MALE_MASS, center=TRUE, scale=FALSE)[,1], 
-         cFEMALE_MASS = scale(FEMALE_MASS, center=TRUE, scale=FALSE)[,1], 
-         cMASS = scale(MASS, center=TRUE, scale=FALSE)[,1]) |> 
+         FEMALE_MASS = coalesce(FEMALE_MASS, MALE_MASS), 
+         LEVEL = as.factor(case_when(TANK >= 1 & TANK <= 199 ~ 1,
+                           TANK >= 200 & TANK <= 299 ~ 2,
+                           TANK >= 300 & TANK <= 399 ~ 3,
+                           TRUE ~ NA_real_))) |> 
   drop_na(MASS) |> 
-  left_join(select(clutch_data, c("CLUTCH_NUMBER","EGG_COUNT","HATCHING_SUCCESS","HATCHLINGS")), by="CLUTCH_NUMBER") |> 
+  left_join(select(clutch_data2, c("CLUTCH_NUMBER","EGG_COUNT","HATCHING_SUCCESS","HATCHLINGS")), by="CLUTCH_NUMBER") |> 
   drop_na(EGG_COUNT) 
 
 
@@ -95,19 +107,19 @@ hmass2 <- hmass |>
 # Exploratory data analysis 
 
 ```{r eda-1, warning=FALSE, message=FALSE, echo=FALSE, fig.width=9, fig.height=5}
-p1 <- ggplot(hmass2, aes(x=REGION, y=cMASS, fill=REGION)) + 
+p1 <- ggplot(hmass2, aes(x=REGION, y=MASS, fill=REGION)) + 
   geom_boxplot() + 
   theme_classic() 
 
-p2 <- ggplot(hmass2, aes(x=REGION, y=cMASS, fill=REGION)) + 
+p2 <- ggplot(hmass2, aes(x=REGION, y=MASS, fill=REGION)) + 
   geom_violin() + 
   theme_classic()  
 
-p3 <- ggplot(hmass2, aes(x=REGION, y=cMASS, fill=REGION)) + 
+p3 <- ggplot(hmass2, aes(x=REGION, y=MASS, fill=REGION)) + 
   geom_jitter() + 
   theme_classic()  
 
-p4 <- ggplot(hmass2, aes(x=cMASS)) + 
+p4 <- ggplot(hmass2, aes(x=MASS)) + 
   geom_density()
 
 ggarrange(p1,p2,p3,p4, 
@@ -115,91 +127,134 @@ ggarrange(p1,p2,p3,p4,
           ncol=2)
 ```
 
-# Fit model 
+# Prior investigation 
 
-Two different hypotheses will be tested to determine which fixed factors will make it into our final model. The first mode will look at fixed factors that are essential to the question being asked, the second tested hypothesis will see if temporal factors such as clutch order and days in treatment influence the outcome. 
-
-MALE_MASS and FEMALE_MASS are collerated and therefore only one is included witin the model. MALE_MASS was chosen to be included because it was recorded for every clutch, where there was one female that mass was not recorded for because the female was found deceased and partial degraded, making any estimate of mass inaccurate
-
-The first hypothesis tested will be: 
-
-```{r fit-model-1, eval=FALSE, echo=TRUE}
-MASS ~ REGION + cMALE_MASS + HATCHLINGS
-```
-
-The second hypothesis will include factors such as **CLUTCH_ORDER** and **DAYS_IN_TREATMENT** 
-
-```{r fit-model-2, eval=FALSE, echo=TRUE}
-MASS ~ REGION + cMALE_MASS + HATCHLINGS + CLUTCH_ORDER + DAYS_IN_TREATMENT
-``` 
-
-```{r }
+```{r prior investigation}
 hmass2 |> 
   group_by(REGION) |> 
-  summarise(mean(MASS), 
-            sd(MASS))
+  summarise(mean(na.omit(MASS)), 
+            sd(na.omit(MASS)))
+```
+# Priors 
+
+```{r priors}
+hmass.priors <- prior(normal(0.00429, 0.001), class="Intercept")
 ```
 
-## Basic model
-```{r}
-form <- bf(cMASS ~ REGION + cMALE_MASS + HATCHLINGS, 
-              family=gaussian())
-get_prior(form, data = hmass2)
-priors <- prior(normal(0.004, 0.001), class="INtercept") +
-  prior(normal(0, 0.001), class ="b") +
-  prior(student_t(3, 0, 0.001), class = "sigma")
+# Random effect modelling {.tabset}
+
+Hypothesis test will include:
+
+0. Null model
+1. MASS ~ 1 + (1| FEMALE)
+2. MASS ~ 1 + (1| FEMALE) + (1| POPULATION)
+3. MASS ~ 1 + (1| FEMALE) + (1| CLUTCH_ORDER)
+4. MASS ~ 1 + (1| FEMALE) + (1| POPULATION) + (1| CLUTCH_ORDER) 
+5. MASS ~ 1 + (1| FEMALE) + (1| POPULATION) + (1| CLUTCH_ORDER) + (1| LEVEL) + (1| TANK)
+
+## null model
+```{r null-model, cache=TRUE}
+f.null.model <- bf(MASS ~ 1, 
+                   family=gaussian()) 
+
+null.model <- brm(f.null.model, 
+                  data=hmass2, 
+                  prior=hmass.priors, 
+                  warmup = 500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior ='yes', 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
+```
+## model1
+
+```{r model1, cache=TRUE}
+f.model1 <- bf(MASS ~ 1 + (1| FEMALE), 
+                   family=gaussian()) 
+
+model1 <- brm(f.model1, 
+                  data=hmass2, 
+                  prior=hmass.priors, 
+                  warmup = 500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior ='yes', 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
 ```
 
-```{r fit-model-3, cache=TRUE}
-model1.hmass <- brm(cMASS ~ REGION + cMALE_MASS + HATCHLINGS, 
-              family=gaussian(),
-              data = hmass2, 
-              prior=set_prior("normal(0,100)", class="b"),
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              prior = priors
-              sample_prior = "yes",
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.99))
+## model2
+
+```{r model2, cache=TRUE}
+f.model2 <- bf(MASS ~ 1 + (1| FEMALE) + (1| POPULATION), 
+                   family=gaussian()) 
+
+model2 <- brm(f.model2, 
+                  data=hmass2, 
+                  prior=hmass.priors, 
+                  warmup = 500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior ='yes', 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
 ```
 
-```{r fit-model-4, fig.height=9}
-stan_trace(model1.hmass$fit)
-stan_ac(model1.hmass$fit) 
-stan_rhat(model1.hmass$fit) 
-stan_ess(model1.hmass$fit)
-stan_dens(model1.hmass$fit, separate_chains = TRUE)
+## model3
+
+```{r model3, cache=TRUE}
+f.model3 <- bf(MASS ~ 1 + (1| FEMALE) + (1| CLUTCH_ORDER), 
+                   family=gaussian()) 
+
+model3 <- brm(f.model3, 
+                  data=hmass2, 
+                  prior=hmass.priors, 
+                  warmup = 500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior ='yes', 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
 ```
 
-This model runs poorly. It may run better in the future when random variables are included. 
+## model4
 
-## Temporal model
+```{r model4, cache=TRUE}
+f.model4 <- bf(MASS ~ 1 + (1| FEMALE) + (1| POPULATION) + (1| CLUTCH_ORDER), 
+                   family=gaussian()) 
 
-```{r fit-model-5, cache=TRUE}
-model2.hmass <- brm(cMASS ~ REGION + cMALE_MASS + HATCHLINGS + CLUTCH_ORDER + DAYS_IN_TREATMENT, 
-              family=gaussian(),
-              data = hmass2, 
-              prior=set_prior("normal(0,100)", class="b"),
-              warmup = 4000, 
-              iter = 10000,
-              seed=123, 
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 4, 
-              thin = 5, 
-              control = list(adapt_delta=0.99))
+model4 <- brm(f.model4, 
+                  data=hmass2, 
+                  prior=hmass.priors, 
+                  warmup = 500, 
+                  iter=5000, 
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior ='yes', 
+                  chains=2, 
+                  thin=5, 
+                  control = list(adapt_delta=0.95))
 ```
 
-```{r fit-model-6, fig.height=9}
-stan_trace(model2.hmass$fit)
-stan_ac(model2.hmass$fit) 
-stan_rhat(model2.hmass$fit) 
-stan_ess(model2.hmass$fit)
-stan_dens(model2.hmass$fit, separate_chains = TRUE)
-```
 
-This model is also poor. Will have to investigate further...
+## {-}
+
+# Model comparison 
+
+```{r model comparison}
+LOO(null.model, model1, model2, model3, model4)
+```
