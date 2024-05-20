@@ -59,7 +59,13 @@ ctmax <- read_delim("import_files/CTmax_data.txt",
         ...30 = col_skip(), ...31 = col_skip()), 
     trim_ws = TRUE)
 
-load("./import_files/growth2.RData")
+clutch_data <- read_delim("./import_files/clutch_data_2022_2023.txt")|> 
+  mutate(PROJECT_CODE = factor(PROJECT_CODE), 
+         FEMALE = factor(FEMALE)) |>
+  filter(PROJECT_CODE == "2"| 
+         PROJECT_CODE == "3"|
+         PROJECT_CODE == "6"|
+         PROJECT_CODE == "7")
 ```
 
 # Data manipulation 
@@ -83,11 +89,15 @@ ctmax2 <- ctmax |>
          DATE_OF_HATCH = as.Date(DATE_OF_HATCH, format = "%d/%m/%Y"),
          DATE_CTMAX = as.Date(DATE_CTMAX, format = "%d/%m/%Y"),
          DEV_TEMP = factor(DEV_TEMP), 
+         LEVEL = as.factor(case_when(TANK >= 1 & TANK <= 199 ~ 1,
+                           TANK >= 200 & TANK <= 299 ~ 2,
+                           TANK >= 300 & TANK <= 399 ~ 3,
+                           TRUE ~ NA_real_)), 
+          
          TANK = factor(TANK)) |> 
-  inner_join(select(growth2, c("FEMALE","FEMALE_LAT")), by="FEMALE") |>
-  drop_na(LOE_MEAN_EAS) |> 
-  filter(LOE_MEAN_EAS >= 35) # This excludes one outlier that had the CTmax value <35 C
-
+  left_join(distinct(select(clutch_data, c("CLUTCH_NUMBER", "FEMALE","FEMALE_LAT","CLUTCH_ORDER")), FEMALE, .keep_all = TRUE), by="FEMALE") |> 
+  mutate(CLUTCH_ORDER = factor(CLUTCH_ORDER)) |>
+  filter(LOE_MEAN_EAS >= 35) 
 ```
 
 # Exploratory data analysis 
@@ -126,7 +136,7 @@ ctmax2 |>
 
 ## Priors 
 ```{r}
-ctmax.priors.re <- prior(normal(37.0, 0.30), class="Intercept") +  
+ctmax.priors.re <- prior(normal(37.0, 0.50), class="Intercept") +  
   prior(student_t(3, 0, 0.1975), class = "sigma")
 ```
 
@@ -153,7 +163,7 @@ saveRDS(model.null, file="./04.CTmax_data_analysis_files/model.null.RDS")
 
 ### Model1
 
-```{r fit-model1, cache=TRUE} 
+```{r fit-model1, cache=TRUE, eval=FALSE, echo=TRUE} 
 f.model1 <- bf(LOE_MEAN_EAS ~ 1 + (1| FEMALE) + (1| TANK), 
                family=gaussian())
 model1 <- brm(f.model1,
@@ -268,7 +278,8 @@ saveRDS(model6, file="./04.CTmax_data_analysis_files/model6.RDS")
 ```
 ### LOO
 ```{r model-comparisons-2, cache=TRUE}
-LOO(model.null,model1,model2,model3,model4,model5,model6) 
+LOO(#model.null,
+  model1,model2,model3,model4,model5,model6) 
 ```
 
 ### {-}
@@ -297,9 +308,9 @@ ctmax2 |>
 
 ## Priors 
 ```{r}
-ctmax.priors.re <- prior(normal(37.0, 0.30), class="Intercept") +  
+ctmax.priors.re <- prior(normal(37.0, 0.50), class="Intercept") +  
   prior(normal(0, 0.05), class ="b") +
-  prior(student_t(3, 0, 0.1975), class = "sigma")
+  prior(student_t(3, 0, 0.1975), class = "sigma") 
 ```
 
 ## Models {.tabset}

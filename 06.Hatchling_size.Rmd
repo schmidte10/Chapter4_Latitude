@@ -38,6 +38,7 @@ library(tidybayes) # partial plots
 library(broom.mixed) # model investigation
 library(emmeans) # pairwise comparisons
 library(rstanarm) # pairwise comparisons - need for emmeans
+library(car) # for correlation analysis
 ```
 
 # Set working directory 
@@ -141,7 +142,7 @@ hmass2 |>
 hmass.priors <- prior(normal(0.00429, 0.001), class="Intercept")
 ```
 
-# Random effect modelling {.tabset}
+# Fit model [random effects] {.tabset}
 
 Hypothesis test will include:
 
@@ -250,11 +251,167 @@ model4 <- brm(f.model4,
                   control = list(adapt_delta=0.95))
 ```
 
+## LOO 
+```{r model comparison}
+LOO(null.model, model1, model2, model3, model4)
+```
 
 ## {-}
 
-# Model comparison 
+# Fit model [fixed factors] 
 
-```{r model comparison}
-LOO(null.model, model1, model2, model3, model4)
+## Collinearity 
+```{r }
+col.lm <- lm(MASS ~ 1 + REGION +
+               scale(FEMALE_MASS, center=TRUE, scale=TRUE) +
+               scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE) + 
+               CLUTCH_ORDER, 
+                data = hmass2)
+vif(col.lm)
+``` 
+
+## Prior investigation 
+```{r }
+hmass2 |> 
+  group_by(REGION) |> 
+  summarise(mean(na.omit(MASS)), 
+            sd(na.omit(MASS))) 
+```
+
+## Priors
+```{r }
+mass.priors <- prior(normal(0.0043, 0.0001), class="Intercept") +  
+  prior(normal(0, 0.0005), class="b") + 
+  prior(student_t(3, 0, 0.0015), class = "sigma")
+```
+
+### Model1.1 {.tabset}
+
+#### Model1.1 
+
+```{r model1.1, cache=TRUE}
+f.model1.1 <- bf(MASS ~ 1 + REGION + 
+                   scale(FEMALE_MASS, center = TRUE, scale = TRUE) + 
+                   scale(DAYS_IN_TREATMENT, center = TRUE, scale=TRUE) + 
+                   (1| FEMALE), 
+                 family=gaussian()) 
+
+model1.1 <- brm(f.model1.1, 
+                data =hmass2, 
+                prior =mass.priors, 
+                warmup = 500, 
+                  iter = 5000,
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes",
+                  chains = 2, 
+                  thin = 10, 
+                  control = list(adapt_delta=0.95))
+saveRDS(model1.1, file="./06.Hatchling_size_files/model1.1.RDS")
+```
+
+#### DHARMa
+```{r model1.1-DHARMa}
+#--- distribution check ---#
+pp_check(model1.1, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+
+#--- DHARMa checks ---#
+preds <- posterior_predict(model1.1 , ndraws=250, summary=FALSE)
+model1.1_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = hmass2$MASS, 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.1_resids) ; testDispersion(model1.1_resids)
+```
+
+#### MCMC Diagnostics
+
+```{r model1.1-mcmc-diag, fig.height=9}
+stan_trace(model1.1$fit)
+stan_ac(model1.1$fit) 
+stan_rhat(model1.1$fit) 
+stan_ess(model1.1$fit)
+stan_dens(model1.1$fit, separate_chains = TRUE)
+
+pairs(model1.1)
+```
+
+#### {-}
+
+### Model1.2 {.tabset}
+
+#### Model1.2 
+
+```{r model1.2, cache=TRUE}
+f.model1.2 <- bf(MASS ~ 1 + REGION + 
+                   scale(FEMALE_MASS, center = TRUE, scale = TRUE) + 
+                   scale(DAYS_IN_TREATMENT, center = TRUE, scale=TRUE) + 
+                   (1| FEMALE), 
+                 family=Gamma(link="log")) 
+
+model1.2 <- brm(f.model1.2, 
+                data =hmass2, 
+                prior =mass.priors, 
+                warmup = 500, 
+                  iter = 5000,
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes",
+                  chains = 2, 
+                  thin = 10, 
+                  control = list(adapt_delta=0.95))
+saveRDS(model1.2, file="./06.Hatchling_size_files/model1.2.RDS")
+```
+
+#### DHARMa
+```{r model1.2-DHARMa}
+#--- distribution check ---#
+pp_check(model1.2, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+
+#--- DHARMa checks ---#
+preds <- posterior_predict(model1.2 , ndraws=250, summary=FALSE)
+model1.2_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = hmass2$MASS, 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.2_resids) ; testDispersion(model1.2_resids)
+```
+
+#### MCMC Diagnostics
+
+```{r model1.2-mcmc-diag, fig.height=9}
+stan_trace(model1.2$fit)
+stan_ac(model1.2$fit) 
+stan_rhat(model1.2$fit) 
+stan_ess(model1.2$fit)
+stan_dens(model1.2$fit, separate_chains = TRUE)
+```
+
+#### {-}
+
+### Model1.3 {.tabset} 
+
+#### Model1.3
+```{r model1.3, cache=TRUE}
+f.model1.3 <- bf(MASS ~ 1 + REGION + 
+                   scale(FEMALE_MASS, center = TRUE, scale = TRUE) + 
+                   scale(DAYS_IN_TREATMENT, center = TRUE, scale=TRUE) + 
+                   (1| FEMALE), 
+                 family=gaussian()) 
+
+model1.3 <- brm(f.model1.1, 
+                data =hmass2, 
+                prior =mass.priors, 
+                warmup = 1000, 
+                  iter = 10000,
+                  seed=123, 
+                  cores=2, 
+                  save_pars = save_pars(all=TRUE), 
+                  sample_prior = "yes",
+                  chains = 2, 
+                  thin = 20, 
+                  control = list(adapt_delta=0.95, max_treedepth=15))
+saveRDS(model1.3, file="./06.Hatchling_size_files/model1.3.RDS")
 ```

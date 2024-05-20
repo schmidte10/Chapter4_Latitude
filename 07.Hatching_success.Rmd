@@ -103,7 +103,7 @@ ggarrange(hs1, hs2,
 ```
 
 
-# Prior investigation 
+# Fit model [random factors] {.tabset}
 
 ```{r prior investigation}
 clutch_data2 |> 
@@ -111,15 +111,16 @@ clutch_data2 |>
   summarise(mean(na.omit(HATCHING_SUCCESS)), 
             sd(na.omit(HATCHING_SUCCESS))) 
 ```
+
 ## Priors 
 
 ```{r priors}
 hatching_success.priors <- prior(normal(0.72, 0.5), class="Intercept")
 ```
 
-# Random effect modelling {.tabset .tabset-pills}
+## Models {.tabset}
 
-## null model 
+### null model 
 ```{r null-model, cache=TRUE}
 null.model.formula <- bf(HATCHING_SUCCESS ~ 1, 
                          family = Beta()) 
@@ -138,7 +139,8 @@ null.model <- brm(null.model.formula,
                   control = list(adapt_delta=0.95))
 saveRDS(null.model, file='./07.Hatching_success_files/null.model.RDS')
 ```
-## model1 
+
+### model1 
 ```{r model1, cache=TRUE}
 model1.formula <- bf(HATCHING_SUCCESS ~ 1 + (1| FEMALE), 
                          family = Beta()) 
@@ -155,10 +157,10 @@ model1 <- brm(model1.formula,
                   chains=2, 
                   thin=5, 
                   control = list(adapt_delta=0.95))
-#saveRDS(model1, file='./07.Hatching_success_files/model1.RDS')
+saveRDS(model1, file='./07.Hatching_success_files/model1.RDS')
 ```
 
-## model2 
+### model2 
 ```{r model2, cache=TRUE}
 model2.formula <- bf(HATCHING_SUCCESS ~ 1 + (1| FEMALE) + (1| POPULATION), 
                          family = Beta()) 
@@ -175,10 +177,10 @@ model2 <- brm(model2.formula,
                   chains=2, 
                   thin=5, 
                   control = list(adapt_delta=0.95))
-#saveRDS(model2, file='./07.Hatching_success_files/model2.RDS')
+saveRDS(model2, file='./07.Hatching_success_files/model2.RDS')
 ```
 
-## model3 
+### model3 
 ```{r model3, cache=TRUE}
 model3.formula <- bf(HATCHING_SUCCESS ~ 1 + (1| FEMALE) + (1| POPULATION) + (1| CLUTCH_ORDER), 
                          family = Beta()) 
@@ -195,34 +197,44 @@ model3 <- brm(model3.formula,
                   chains=2, 
                   thin=5, 
                   control = list(adapt_delta=0.95))
-#saveRDS(model3, file='./07.Hatching_success_files/model3.RDS')
+saveRDS(model3, file='./07.Hatching_success_files/model3.RDS')
+```
+
+### {-}
+
+## LOO
+
+```{r }
+LOO(null.model, model1, model2, model3)
 ```
 
 ## {-}
 
-## Model comparison [random factors]
+# Fit model [fixed factors] 
 
-```{r}
-LOO(null.model, model1, model2, model3)
-```
-
-# priors {.tabset .tabset-pills}
-```{r priors-2}
+## Priors investigation 
+```{r }
 clutch_data2 |> 
   group_by(REGION) |> 
   summarise(mean(na.omit(HATCHING_SUCCESS)), 
             sd(na.omit(HATCHING_SUCCESS))) 
-#get_prior(model1.1.formula, data=clutch_data2)
+``` 
+
+## Priors 
+```{r }
 hatching_success.priors <- prior(normal(0.72, 0.5), class="Intercept") + 
   prior(normal(0,1), class = "b")
 ```
-## Fixed effect modelling {.tabset .tabset-pills}
 
-### Basic model
+## Models {.tabset}
+
+### Model1.1 {.tabset}
+
+#### Model1.1
 
 ```{r model1.1, cache=TRUE}
 model1.1.formula <- bf(HATCHING_SUCCESS ~ 1 + REGION + scale(FEMALE_MASS) + (1| FEMALE), 
-                         family = Beta())
+                         family = Beta(link="logit"))
 
 model1.1 <- brm(model1.1.formula, 
                   data=clutch_data2, 
@@ -236,13 +248,40 @@ model1.1 <- brm(model1.1.formula,
                   chains=2, 
                   thin=5, 
                   control = list(adapt_delta=0.95))
+saveRDS(model1.1, file='./07.Hatching_success_files/model1.1.RDS')
 ```
 
-### Temporal model
+#### Model diagnositics 
 
+```{r model1.1-diag}
+#--- distribution check ---#
+pp_check(model1.1, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+
+preds <- posterior_predict(model1.1, ndraws=250, summary=FALSE)
+model1.1_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = clutch_data2$HATCHING_SUCCESS, 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.1_resids) ; testDispersion(model1.1_resids)
+``` 
+
+#### MCMC diagnoistics
+```{r model1.1-MCMC-diag, fig.height=9}
+stan_trace(model1.1$fit)
+stan_ac(model1.1$fit) 
+stan_rhat(model1.1$fit) 
+stan_ess(model1.1$fit)
+stan_dens(model1.1$fit, separate_chains = TRUE)
+```
+
+#### {-}
+
+### Model1.2 {.tabset}
+
+#### Model1.2
 ```{r model1.2, cache=TRUE}
 model1.2.formula <- bf(HATCHING_SUCCESS ~ 1 + REGION + scale(FEMALE_MASS) + scale(DAYS_IN_TREATMENT) + (1| FEMALE), 
-                         family = Beta()) 
+                         family = Beta(link="logit")) 
 
 model1.2 <- brm(model1.2.formula,
               data = clutch_data2, 
@@ -255,42 +294,47 @@ model1.2 <- brm(model1.2.formula,
               chains = 2, 
               sample_prior = "yes", 
               thin = 5, 
-              control = list(adapt_delta=0.95))
+              control = list(adapt_delta=0.95)) 
+saveRDS(model1.2, file='./07.Hatching_success_files/model1.2.RDS')
 ```
-### {-}
 
-# LOO
+#### Model diagnositics 
+
+```{r model1.2-diag}
+#--- distribution check ---#
+pp_check(model1.2, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+
+preds <- posterior_predict(model1.2, ndraws=250, summary=FALSE)
+model1.2_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = clutch_data2$HATCHING_SUCCESS, 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.2_resids) ; testDispersion(model1.2_resids)
+``` 
+
+#### MCMC diagnoistics
+```{r model1.2-MCMC-diag, fig.height=9}
+stan_trace(model1.2$fit)
+stan_ac(model1.2$fit) 
+stan_rhat(model1.2$fit) 
+stan_ess(model1.2$fit)
+stan_dens(model1.2$fit, separate_chains = TRUE)
+```
+
+#### {-}
+
+### LOO
 ```{r model-comparisons-2}
 LOO(model1.1, model1.2) 
 ```
+### {-}
 
-# model performance
-```{r hs-fit-model-4, fig.height=9}
-stan_trace(model1.1$fit)
-stan_ac(model1.1$fit) 
-stan_rhat(model1.1$fit) 
-stan_ess(model1.1$fit)
-stan_dens(model1.1$fit, separate_chains = TRUE)
-```
+# Re-fit model
 
-# Model diagnositics 
+## Models {.tabset}
 
-```{r hatch-diag-1a}
-#--- distribution check ---#
-pp_check(model1.1, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
-```
-
-```{r hatch-diag-1b}
-clutch_data2.naomit <- drop_na(clutch_data2, FEMALE_MASS)
-preds <- posterior_predict(model1.1, ndraws=250, summary=FALSE)
-model1.1_resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = clutch_data2.naomit$HATCHING_SUCCESS, 
-                              fittedPredictedResponse = apply(preds, 2, mean), 
-                              integerResponse = 'student')
-plot(model1.1_resids) ; testDispersion(model1.1_resids)
-``` 
-
-# Model re-fit 1
+### Model_probit {.tabset}
+#### Model_probit
 
 ```{r model1.1_probit, cache=TRUE}
 model1.1_probit_formula <- bf(HATCHING_SUCCESS ~ 1 + REGION + scale(FEMALE_MASS) + (1| FEMALE), 
@@ -311,23 +355,12 @@ model1.1_probit <- brm(model1.1_probit_formula,
 
 ```
 
-## Model performance 
+#### Model_probit diagnositics 
 
-```{r model1.1_probit-performance, fig.height=9}
-stan_trace(model1.1_probit$fit)
-stan_ac(model1.1_probit$fit) 
-stan_rhat(model1.1_probit$fit) 
-stan_ess(model1.1_probit$fit)
-stan_dens(model1.1_probit$fit, separate_chains = TRUE)
-```
-## Model diagnositics 
-
-```{r hatch-diag-2a}
+```{r model1.1_probit-diag}
 #--- distribution check ---#
 pp_check(model1.1_probit, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
-```
 
-```{r hatch-diag-2b}
 clutch_data2.naomit <- drop_na(clutch_data2, FEMALE_MASS)
 preds <- posterior_predict(model1.1_probit, ndraws=250, summary=FALSE)
 model1.1_probit_resids <- createDHARMa(simulatedResponse = t(preds), 
@@ -337,10 +370,23 @@ model1.1_probit_resids <- createDHARMa(simulatedResponse = t(preds),
 plot(model1.1_probit_resids) ; testDispersion(model1.1_probit_resids)
 ``` 
 
-# Model re-fit 2
+#### Model diagnositics 
 
+```{r model1.1_probit-MCMC-diag, fig.height=9}
+stan_trace(model1.1_probit$fit)
+stan_ac(model1.1_probit$fit) 
+stan_rhat(model1.1_probit$fit) 
+stan_ess(model1.1_probit$fit)
+stan_dens(model1.1_probit$fit, separate_chains = TRUE)
+```
 
-```{r model1.1_logit.log, cache=TRUE}
+#### {-}
+
+### Model_probitlog {.tabset}
+
+#### Model_probitlog
+
+```{r model1.1_probitlog, cache=TRUE}
 model1.1_log_formula <- bf(HATCHING_SUCCESS ~ 1 + REGION + scale(FEMALE_MASS) + (1| FEMALE), 
                          family = Beta(link="probit", link_phi = "log"))
 
@@ -357,24 +403,13 @@ model1.1_log <- brm(model1.1_log_formula,
                   thin=5, 
                   control = list(adapt_delta=0.95))
 ``` 
-## Model performance 
 
-```{r model1.1_probitlog-performance, fig.height=9}
-stan_trace(model1.1_log$fit)
-stan_ac(model1.1_log$fit) 
-stan_rhat(model1.1_log$fit) 
-stan_ess(model1.1_log$fit)
-stan_dens(model1.1_log$fit, separate_chains = TRUE)
-```
+#### Model_probitlog diagnositics 
 
-## Model diagnositics 
-
-```{r hatch-diag-probitlog}
+```{r model1.1_probitlog-diag}
 #--- distribution check ---#
 pp_check(model1.1_log, type = 'dens_overlay_grouped', ndraws=100, group="REGION")
-```
 
-```{r hatch-diag-logit}
 clutch_data2.naomit <- drop_na(clutch_data2, FEMALE_MASS)
 preds <- posterior_predict(model1.1_log, ndraws=250, summary=FALSE)
 model1.1_log_resids <- createDHARMa(simulatedResponse = t(preds), 
@@ -382,53 +417,139 @@ model1.1_log_resids <- createDHARMa(simulatedResponse = t(preds),
                               fittedPredictedResponse = apply(preds, 2, mean), 
                               integerResponse = 'student')
 plot(model1.1_log_resids) ; testDispersion(model1.1_log_resids)
-``` 
-
-# Model re-fit 3
-
-
-```{r model1.1_sqplus, cache=TRUE}
-model1.1_sqplus_formula <- bf(HATCHING_SUCCESS ~ 1 + REGION + scale(FEMALE_MASS) + (1| FEMALE), 
-                         family = Beta(link="probit", link_phi = "squareplus"))
-
-model1.1_sqplus <- brm(model1.1_sqplus_formula, 
-                  data=clutch_data2, 
-                  prior=hatching_success.priors, 
-                  warmup=500, 
-                  iter=5000, 
-                  seed=123, 
-                  cores=2, 
-                  save_pars = save_pars(all=TRUE), 
-                  sample_prior = "yes", 
-                  chains=2, 
-                  thin=5, 
-                  control = list(adapt_delta=0.95))
-``` 
-## Model performance 
-
-```{r model1.1_sqplus-performance, fig.height=9}
-stan_trace(model1.1_sqplus$fit)
-stan_ac(model1.1_sqplus$fit) 
-stan_rhat(model1.1_sqplus$fit) 
-stan_ess(model1.1_sqplus$fit)
-stan_dens(model1.1_sqplus$fit, separate_chains = TRUE)
 ```
 
-## Model diagnositics 
+#### Model_probitlog MCMC diagnositics 
 
-```{r hatch-diag-3a}
-#--- distribution check ---#
-pp_check(model1.1_sqplus, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+```{r model1.1_probitlog-MCMC-diag, fig.height=9}
+stan_trace(model1.1_log$fit)
+stan_ac(model1.1_log$fit) 
+stan_rhat(model1.1_log$fit) 
+stan_ess(model1.1_log$fit)
+stan_dens(model1.1_log$fit, separate_chains = TRUE)
 ```
 
-```{r hatch-diag-sqplus}
-preds <- posterior_predict(model1.1_sqplus, ndraws=250, summary=FALSE)
-model1.1_sqplus_resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = clutch_data2.naomit$HATCHING_SUCCESS, 
-                              fittedPredictedResponse = apply(preds, 2, mean), 
-                              integerResponse = 'student')
-plot(model1.1_sqplus_resids) ; testDispersion(model1.1_sqplus_resids)
+#### {-}
+### {-}
+
+## LOO 
+```{r}
+LOO(model1.1, model1.1_probit, model1.1_log)
+```
+
+# Partial effects plots
+```{r partial effecits plots}
+model1.1 |> conditional_effects(spaghetti = TRUE, ndraws=200)
+```
+
+# Model investigation {.tabset .tabset-pills}
+
+## summary 
+
+```{r summary-100}
+summary(model1.1)
+```
+
+## R2 
+
+```{r r-squared}
+model1.1 |> bayes_R2(summary = FALSE) |> median_hdci()
+```
+
+## tidyMCMC 
+
+```{r tidy}
+tidyMCMC(model1.1, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+```
+
+## gather draws 
+
+```{r gather_draws}
+#model1.1 |> get_variables()
+model1.1 |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+  median_hdci()
 ``` 
 
+## bayesplot 
 
+```{r bayesplot-1}
+model1.1 |> mcmc_plot(type='intervals')
+```
+
+## emmeans - pariwise 
+
+```{r emmeans-pairwise}
+model1.1 |> emmeans(pairwise ~ REGION, type="response") |> regrid()
+model1.1 |> emmeans(pairwise ~ REGION, type="response") |> pairs(type="response")
+```
+
+## probabilities 
+```{r probabilities}
+mtsqst <- model1.1 |> emmeans(pairwise ~ REGION)
+mtsqrt1 <- mtsqst$contrasts |> gather_emmeans_draws()
+mtsqrt1 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
+```
+## {-}
+
+# Summary figuire 
+```{r summary-figure}
+var <- get_variables(model1.1)
+var1 <- get_variables(model1.1)[c(1:2)]
+
+int_draws_spread <- model1.1 |> spread_draws(!!!syms(var1)) 
+
+int_draws_spread2 <- int_draws_spread |> 
+  gather_draws(b_Intercept, b_REGIONleading) |> 
+  left_join(int_draws_spread, by = c(".chain",".iteration",".draw"))
+
+
+int_draws <- int_draws_spread2 |> 
+  mutate(RCore = case_when(`.variable` == 'b_Intercept' ~ 
+                             `.value`, 
+                           `.variable` != 'b_Intercept' ~ 
+                             `.value` + b_Intercept), 
+         
+         RLeading = case_when(`.variable` == 'b_Intercept' ~ 
+                           `.value` + b_REGIONleading, 
+                         `.variable` == 'b_REGIONleading' ~ 
+                           `.value` + b_Intercept + `b_REGIONleading`), 
+         TCore_response = exp(RCore)/(1+exp(RCore)), 
+         TLeading_response = exp(RLeading)/(1+exp(RLeading))) 
+
+int_draws_plotting <- int_draws |> 
+  pivot_longer(cols = starts_with("T"), 
+               names_to = "REGION", 
+               values_to = "REPRODUCTIVE_OUTPUT") |> 
+  transmute(LATITUDE = case_when(`.variable` == "b_Intercept" ~ "Low latitude", 
+                                 `.variable` == "b_REGIONleading" ~ "High latitude"),
+            REPRODUCTIVE_OUTPUT = REPRODUCTIVE_OUTPUT, 
+            LATITUDE_B = LATITUDE,
+            chain = `.chain`, 
+            iteration = `.iteration`, 
+            draw_n = `.draw`) 
+
+hatching.success.plot <- int_draws_plotting |> 
+  ggplot(aes(x=LATITUDE, y=REPRODUCTIVE_OUTPUT)) + 
+  #geom_hline(yintercept = 0, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
+  stat_halfeye(aes(fill = LATITUDE, fill_ramp = after_stat(level)), 
+               point_interval = mode_hdci, 
+               .width = c(.66, .89, .95)) + 
+  scale_fill_ramp_discrete(na.translate=FALSE, 
+                           labels =c("0.95","0.89","0.66"), 
+                           name = "Credible interval") +
+  scale_fill_manual(values = c("lightskyblue","coral"))+ 
+  #scale_y_continuous(limits=c(0,2), breaks = seq(0,2, .5))+
+  ylab("HATCHING SUCCESS") + xlab("EXPERIMENTAL GROUP") +
+  scale_x_discrete(labels = c("Low latitude" = paste0("Low latitude"), 
+                              "High latitude" = paste0("High latitude"))) +
+  #annotate("text", x=6.8,y=1.4, label = paste0(round(mean(growth3$MASS), 2)," (mm)"), color="grey58") +
+  coord_flip() + 
+  theme_classic() + 
+  guides(fill = "none") + 
+  theme(legend.position = c(.15,.86), 
+        axis.title.y = element_text(margin = margin(r =0.3, unit = "in"), size = 12), 
+        axis.title.x = element_text(margin = margin(t = 0.3, unit="in"), size =12), 
+        legend.key = element_rect(color="black", size=1.25), 
+        legend.background = element_rect(fill = alpha("blue", 0))); hatching.success.plot 
+```
 
