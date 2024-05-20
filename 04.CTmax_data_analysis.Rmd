@@ -135,7 +135,7 @@ ctmax.priors.re <- prior(normal(37.0, 0.30), class="Intercept") +
 ### Null
 ```{r fit-model-null, cache=TRUE} 
 f.model.null <- bf(LOE_MEAN_EAS ~ 1, 
-                   fanily=gaussian())
+                   family=gaussian())
 model.null <- brm(f.model.null,
                    data = ctmax2, 
                    prior = ctmax.priors.re,
