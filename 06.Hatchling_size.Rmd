@@ -285,6 +285,8 @@ mass.priors <- prior(normal(0.0043, 0.0001), class="Intercept") +
   prior(student_t(3, 0, 0.0015), class = "sigma")
 ```
 
+## Models {.tabset}
+
 ### Model1.1 {.tabset}
 
 #### Model1.1 
@@ -292,8 +294,7 @@ mass.priors <- prior(normal(0.0043, 0.0001), class="Intercept") +
 ```{r model1.1, cache=TRUE}
 f.model1.1 <- bf(MASS ~ 1 + REGION + 
                    scale(FEMALE_MASS, center = TRUE, scale = TRUE) + 
-                   scale(DAYS_IN_TREATMENT, center = TRUE, scale=TRUE) + 
-                   (1| FEMALE), 
+                   (1| FEMALE) + (1| POPULATION) + (1| CLUTCH_ORDER), 
                  family=gaussian()) 
 
 model1.1 <- brm(f.model1.1, 
@@ -339,29 +340,27 @@ pairs(model1.1)
 
 #### {-}
 
-### Model1.2 {.tabset}
+### Model1.2 {.tabset} 
 
-#### Model1.2 
-
+#### model1.2
 ```{r model1.2, cache=TRUE}
 f.model1.2 <- bf(MASS ~ 1 + REGION + 
-                   scale(FEMALE_MASS, center = TRUE, scale = TRUE) + 
-                   scale(DAYS_IN_TREATMENT, center = TRUE, scale=TRUE) + 
-                   (1| FEMALE), 
-                 family=Gamma(link="log")) 
+                   scale(FEMALE_MASS, center = TRUE, scale = TRUE) +
+                   (1| FEMALE) + (1| POPULATION) + (1| CLUTCH_ORDER), 
+                 family=gaussian()) 
 
-model1.2 <- brm(f.model1.2, 
+model1.2 <- brm(f.model1.1, 
                 data =hmass2, 
                 prior =mass.priors, 
-                warmup = 500, 
-                  iter = 5000,
+                warmup = 1000, 
+                  iter = 10000,
                   seed=123, 
                   cores=2, 
                   save_pars = save_pars(all=TRUE), 
                   sample_prior = "yes",
                   chains = 2, 
-                  thin = 10, 
-                  control = list(adapt_delta=0.95))
+                  thin = 20, 
+                  control = list(adapt_delta=0.95, max_treedepth=15))
 saveRDS(model1.2, file="./06.Hatchling_size_files/model1.2.RDS")
 ```
 
@@ -391,27 +390,177 @@ stan_dens(model1.2$fit, separate_chains = TRUE)
 
 #### {-}
 
-### Model1.3 {.tabset} 
+### Model1.3 {.tabset}
 
-#### Model1.3
+```{r }
+mass.priors.gamma <- prior(normal(0.0043, 0.0001), class="Intercept") +  
+  prior(normal(0, 0.0005), class="b") 
+```
+
+#### model1.3 
+
 ```{r model1.3, cache=TRUE}
 f.model1.3 <- bf(MASS ~ 1 + REGION + 
                    scale(FEMALE_MASS, center = TRUE, scale = TRUE) + 
-                   scale(DAYS_IN_TREATMENT, center = TRUE, scale=TRUE) + 
-                   (1| FEMALE), 
-                 family=gaussian()) 
+                   (1| FEMALE) + (1| POPULATION) + (1| CLUTCH_ORDER), 
+                 family=Gamma(link="log")) 
 
-model1.3 <- brm(f.model1.1, 
+model1.3 <- brm(f.model1.3, 
                 data =hmass2, 
-                prior =mass.priors, 
-                warmup = 1000, 
-                  iter = 10000,
+                prior =mass.priors.gamma, 
+                warmup = 500, 
+                  iter = 5000,
                   seed=123, 
                   cores=2, 
                   save_pars = save_pars(all=TRUE), 
                   sample_prior = "yes",
                   chains = 2, 
-                  thin = 20, 
-                  control = list(adapt_delta=0.95, max_treedepth=15))
+                  thin = 10, 
+                  control = list(adapt_delta=0.95))
 saveRDS(model1.3, file="./06.Hatchling_size_files/model1.3.RDS")
 ```
+
+#### DHARMa
+```{r model1.3-DHARMa}
+#--- distribution check ---#
+pp_check(model1.3, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+
+#--- DHARMa checks ---#
+preds <- posterior_predict(model1.3 , ndraws=250, summary=FALSE)
+model1.3_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = hmass2$MASS, 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.3_resids) ; testDispersion(model1.3_resids)
+```
+
+#### MCMC Diagnostics
+
+```{r model1.3-mcmc-diag, fig.height=9}
+stan_trace(model1.3$fit)
+stan_ac(model1.3$fit) 
+stan_rhat(model1.3$fit) 
+stan_ess(model1.3$fit)
+stan_dens(model1.3$fit, separate_chains = TRUE)
+```
+
+#### {-} 
+
+### {-}
+
+# partial plots 
+
+```{r partial-plots-cond-eff-1}
+model1.2 |> conditional_effects(spaghetti = TRUE, ndraws=200) 
+```
+
+# Model investigation {.tabset .tabset-pills}
+
+## summary 
+
+```{r summary-100}
+summary(model1.2)
+```
+
+## R2 
+
+```{r r-squared}
+model1.2 |> bayes_R2(summary = FALSE) |> median_hdci()
+```
+
+## tidyMCMC 
+
+```{r tidy}
+tidyMCMC(model1.2, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+```
+
+## gather draws 
+
+```{r gather_draws}
+#model1.2 |> get_variables()
+model1.2 |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+  median_hdci()
+``` 
+
+## bayesplot 
+
+```{r bayesplot-1}
+model1.2 |> mcmc_plot(type='intervals')
+```
+
+## emmeans - pariwise 
+
+```{r emmeans-pairwise}
+model1.2 |> emmeans(pairwise ~ REGION, type="response") |> pairs() |> summary()
+model1.2 |> emmeans(pairwise ~ REGION, type="response") 
+```
+
+## probabilities 
+```{r probabilities}
+mtsqst <- model1.2 |> emmeans(pairwise ~ REGION)
+mtsqrt1 <- mtsqst$contrasts |> gather_emmeans_draws()
+mtsqrt1 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
+``` 
+
+## {-}
+
+# Summary plot
+```{r summary-plot, warning=FALSE}
+var <- get_variables(model1.2)
+var1 <- get_variables(model1.2)[c(1:2)] 
+
+int_draws_spread <- model1.2 |> spread_draws(!!!syms(var1)) 
+
+int_draws_spread2 <- int_draws_spread |> 
+  gather_draws(b_Intercept, b_REGIONleading) |> 
+  left_join(int_draws_spread, by = c(".chain",".iteration",".draw"))
+
+
+int_draws <- int_draws_spread2 |> 
+  mutate(RCore = case_when(`.variable` == 'b_Intercept' ~ 
+                             `.value`, 
+                           `.variable` != 'b_Intercept' ~ 
+                             `.value` + b_Intercept), 
+         
+         RLeading = case_when(`.variable` == 'b_Intercept' ~ 
+                           `.value` + b_REGIONleading, 
+                         `.variable` == 'b_REGIONleading' ~ 
+                           `.value` + b_Intercept + `b_REGIONleading`))
+
+int_draws_plotting <- int_draws |> 
+  pivot_longer(cols = starts_with("R"), 
+               names_to = "REGION", 
+               values_to = "HATCHLING_MASS") |> 
+  transmute(LATITUDE = case_when(`.variable` == "b_Intercept" ~ "Low latitude", 
+                                 `.variable` == "b_REGIONleading" ~ "High latitude"),
+            HATCHLING_MASS = HATCHLING_MASS, 
+            LATITUDE_B = LATITUDE,
+            chain = `.chain`, 
+            iteration = `.iteration`, 
+            draw_n = `.draw`) 
+
+hatchling.size.plot <- int_draws_plotting |> 
+  ggplot(aes(x=LATITUDE, y=HATCHLING_MASS)) + 
+  #geom_hline(yintercept = 0, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
+  stat_halfeye(aes(fill = LATITUDE, fill_ramp = after_stat(level)), 
+               point_interval = mode_hdci, 
+               .width = c(.66, .89, .95)) + 
+  scale_fill_ramp_discrete(na.translate=FALSE, 
+                           labels =c("0.95","0.89","0.66"), 
+                           name = "Credible interval") +
+  scale_fill_manual(values = c("lightskyblue","coral"))+ 
+  #scale_y_continuous(limits=c(0,2), breaks = seq(0,2, .5))+
+  ylab("HATCHLING_MASS") + xlab("EXPERIMENTAL GROUP") +
+  scale_x_discrete(labels = c("Low latitude" = paste0("Low latitude"), 
+                              "High latitude" = paste0("High latitude"))) +
+  #annotate("text", x=6.8,y=1.4, label = paste0(round(mean(growth3$MASS), 2)," (mm)"), color="grey58") +
+  coord_flip() + 
+  theme_classic() + 
+  guides(fill = "none") + 
+  theme(legend.position = c(.15,.86), 
+        axis.title.y = element_text(margin = margin(r =0.3, unit = "in"), size = 12), 
+        axis.title.x = element_text(margin = margin(t = 0.3, unit="in"), size =12), 
+        legend.key = element_rect(color="black", size=1.25), 
+        legend.background = element_rect(fill = alpha("blue", 0))); hatchling.size.plot 
+```
+

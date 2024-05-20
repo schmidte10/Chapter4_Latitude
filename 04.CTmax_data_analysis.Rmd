@@ -97,7 +97,15 @@ ctmax2 <- ctmax |>
          TANK = factor(TANK)) |> 
   left_join(distinct(select(clutch_data, c("CLUTCH_NUMBER", "FEMALE","FEMALE_LAT","CLUTCH_ORDER")), FEMALE, .keep_all = TRUE), by="FEMALE") |> 
   mutate(CLUTCH_ORDER = factor(CLUTCH_ORDER)) |>
-  filter(LOE_MEAN_EAS >= 35) 
+  filter(LOE_MEAN_EAS >= 35) |> 
+  drop_na(FEMALE) |> 
+  drop_na(POPULATION) |> 
+  drop_na(TANK) |> 
+  drop_na(LEVEL) |> 
+  drop_na(CLUTCH_ORDER) |> 
+  drop_na(EXPERIMENT) |> 
+  drop_na(TRAY_COL) |> 
+  drop_na(TRAY_ORD)
 ```
 
 # Exploratory data analysis 
@@ -163,7 +171,7 @@ saveRDS(model.null, file="./04.CTmax_data_analysis_files/model.null.RDS")
 
 ### Model1
 
-```{r fit-model1, cache=TRUE, eval=FALSE, echo=TRUE} 
+```{r fit-model1, cache=TRUE} 
 f.model1 <- bf(LOE_MEAN_EAS ~ 1 + (1| FEMALE) + (1| TANK), 
                family=gaussian())
 model1 <- brm(f.model1,
@@ -278,24 +286,12 @@ saveRDS(model6, file="./04.CTmax_data_analysis_files/model6.RDS")
 ```
 ### LOO
 ```{r model-comparisons-2, cache=TRUE}
-LOO(#model.null,
-  model1,model2,model3,model4,model5,model6) 
+LOO(model.null,model1,model2,model3,model4,model5,model6) 
 ```
 
 ### {-}
 
 # Fit model [fixed factors] 
-
-## Collinearity 
-```{r collinearity}
-col.lm <- lm(LOE_MEAN_EAS ~ 1 + DEV_TEMP+REGION + 
-                         scale(FEMALE_MASS, center=TRUE, scale=TRUE) + 
-                         scale(DENSITY, center=TRUE, scale=TRUE) + 
-                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
-                         scale(LENGTH, center=TRUE, scale=TRUE), 
-                data = growth3)
-vif(col.lm)
-```
 
 ##  Prior investigation 
 ```{r }
@@ -308,7 +304,7 @@ ctmax2 |>
 
 ## Priors 
 ```{r}
-ctmax.priors.re <- prior(normal(37.0, 0.50), class="Intercept") +  
+ctmax.priors <- prior(normal(37.0, 0.50), class="Intercept") +  
   prior(normal(0, 0.05), class ="b") +
   prior(student_t(3, 0, 0.1975), class = "sigma") 
 ```
@@ -318,7 +314,7 @@ ctmax.priors.re <- prior(normal(37.0, 0.50), class="Intercept") +
 ```{r model1.1, cache=TRUE}
 f.model1.1 <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
                        scale(MASS, center=TRUE, scale=TRUE) + 
-                       (1|FEMALE) + (1 |TANK), 
+                       (1| FEMALE) + (1| TANK) + (1| LEVEL) + (1| POPULATION) + (1| CLUTCH_ORDER), 
                      family=gaussian())
 
 model1.1 <- brm(f.model1.1,
@@ -365,7 +361,7 @@ stan_dens(model1.1$fit, separate_chains = TRUE)
 f.model1.2 <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
                    scale(FEMALE_LAT, center=TRUE, scale=TRUE) +
                    scale(MASS, center=TRUE, scale=TRUE) +
-                   (1|FEMALE) + (1 |TANK),
+                   (1| FEMALE) + (1| TANK) + (1| LEVEL) + (1| POPULATION) + (1| CLUTCH_ORDER),
                  family=gaussian())
 
 model1.2 <- brm(f.model1.2,
@@ -407,9 +403,63 @@ stan_dens(model1.2$fit, separate_chains = TRUE)
 ```
 #### {-}
 
+### Model1.3 {.tabset}
+
+```{r}
+ctmax.priors.gamma <- prior(normal(37.0, 0.50), class="Intercept") +  
+  prior(normal(0, 0.05), class ="b")
+```
+
+
+```{r Model1.3}
+f.model1.3 <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
+                   scale(FEMALE_LAT, center=TRUE, scale=TRUE) +
+                   scale(MASS, center=TRUE, scale=TRUE) +
+                   (1| FEMALE) + (1| TANK) + (1| LEVEL) + (1| POPULATION) + (1| CLUTCH_ORDER),
+                 family=Gamma(link="log"))
+
+model1.3 <- brm(f.model1.3,
+              data = ctmax2,
+              prior =ctmax.priors.gamma,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE),  
+              sample_prior= "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95))
+saveRDS(model1.3, file="./04.CTmax_data_analysis_files/model1.3.RDS")
+```
+
+#### DHARMa 
+```{r model1.3-dharma}
+#--- distribution check ---#
+pp_check(model1.3, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
+
+#--- DHARMa checks ---#
+preds <- posterior_predict(model1.3, ndraws=250, summary=FALSE)
+model1.3_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = na.omit(ctmax2$LOE_MEAN_EAS), 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.3_resids) ; testDispersion(model1.3_resids)
+```
+
+#### MCMC diagnositics 
+```{r mcmc-diag-model1.3, fig.height=9}
+stan_trace(model1.3$fit, allpars=TRUE)
+stan_ac(model1.3$fit) 
+stan_rhat(model1.3$fit) 
+stan_ess(model1.3$fit)
+stan_dens(model1.3$fit, separate_chains = TRUE)
+```
+#### {-}
+
 ### LOO
 ```{r model-comparisons-3, cache=TRUE}
-LOO(model1.1,model1.2) 
+LOO(model1.1,model1.2, model1.3) 
 ```
 
 ### {- }
@@ -459,13 +509,14 @@ model1.1 |> mcmc_plot(type='intervals')
 
 ```{r emmeans-pairwise}
 model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
-
 model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> summary()
+model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> confint()
+model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() 
 ```
 
 ## probabilities 
 ```{r probabilities}
-mtsqst <- model1.1 |> emmeans(pairwise ~ REGION)
+mtsqst <- model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP)
 mtsqrt1 <- mtsqst$contrasts |> gather_emmeans_draws()
 mtsqrt1 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 ```
