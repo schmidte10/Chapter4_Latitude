@@ -1,0 +1,304 @@
+---
+title: "10.blups"
+author: "Elliott Schmidt"
+date: "`r Sys.Date()`"
+output: 
+  html_document: 
+    toc: true  
+    toc_depth: 2
+    toc_float: true
+    code_folding: show
+    collapse: no
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 6
+    highlight: monochrome
+    theme: cerulean
+    latex_engine: xelatex
+---
+
+# Blups 
+
+# Load packages 
+```{r load-packages-1, warning=FALSE, message=FALSE}
+library(tidyverse) # data manipulation
+library(ggpubr) # figure arrangement 
+library(brms) # Bayesian models
+library(StanHeaders)# needed to run Bayesian models
+library(rstan) # needed to run Bayesian models
+library(standist) # needs to be installed 
+library(bayesplot) # needed for MCMC diagnostics 
+library(DHARMa) # model validation 
+library(ggdist) # partial plots 
+library(tidybayes) # partial plots 
+library(broom.mixed) # model investigation
+library(emmeans) # pairwise comparisons
+library(rstanarm) # pairwise comparisons - need for emmeans
+library(car) # for vif
+```
+
+
+# Example data 
+```{r example-data}
+flowerdata <- read_csv("nph15656-sup-0002-notess3.zip", 
+    skip = 10) 
+
+head(flowerdata) 
+```
+```{r }
+flowerdata$genotype <- as.factor(flowerdata$genotype)
+flowerdata$loc <- as.factor(flowerdata$temperature) 
+flowerdata$ctemperature <- scale(flowerdata$temperature) 
+
+model1.1 <- lmer(relativedate ~ ctemperature + (1|loc), REML = FALSE, data = flowerdata) 
+
+temperature_pred <- data.frame(ctemperature = seq(from = min(flowerdata$ctemperature),
+                                                 to = max(flowerdata$ctemperature),
+                                                 length.out = 50))
+temperature_pred$fit1.1 <- predict(model1.1, newdata = temperature_pred, re.form = NA)
+```
+
+# Load data
+```{r load-data}
+load("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude/import_files/growth2.RData")
+model1.length <- readRDS("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude/01.growth_data_analysis_files/model1.length.RDS") 
+
+growth3 <- growth2 |> 
+  filter(MASS < 4, na.rm=TRUE, 
+         FULTONK < 0.079, 
+         FULTONK > 0.01, 
+         DENSITY > 3) |> 
+  mutate(DEV_TEMP=as.numeric(DEV_TEMP))
+```
+
+# Model1.1
+```{r model1.1}
+model1.1 <- lmer(LENGTH ~ as.numeric(DEV_TEMP)  + (1 |POPULATION), 
+                 REML=FALSE,
+                 data=growth3)   
+
+summary(model1.1)
+r.squaredGLMM(model1.1)
+
+dev_temp_pred <- data.frame(DEV_TEMP = seq(from=min(as.numeric(growth3$DEV_TEMP)), 
+                                           to=max(as.numeric(growth3$DEV_TEMP)), 
+                                           length.out=100)) 
+dev_temp_pred$fit1.1 <- predict(model1.1, newdata = dev_temp_pred, re.form=NA) 
+
+ggplot(dev_temp_pred, aes(x = DEV_TEMP, y = fit1.1)) +
+  geom_jitter(data = growth3, aes(y = LENGTH, colour = POPULATION), width=0.2) +
+  geom_line(size = 2) +
+  theme_classic() + 
+  facet_wrap(~POPULATION)
+``` 
+
+#Model1.2
+```{r model1.2}
+model1.2 <- lmer(LENGTH ~ poly(as.numeric(DEV_TEMP), 2, raw = TRUE)  + (1 |POPULATION), 
+                 REML=FALSE,
+                 data=growth3)  
+
+summary(model1.2)
+r.squaredGLMM(model1.2)
+
+dev_temp_pred$fit1.2 <- predict(model1.2, newdata = dev_temp_pred, re.form=NA) 
+
+ggplot(dev_temp_pred, aes(x = DEV_TEMP, y = fit1.2)) +
+  geom_jitter(data = growth3, aes(y = LENGTH, colour = POPULATION), width=0.2) +
+  geom_line(size = 2) +
+  theme_classic() + 
+  facet_wrap(~POPULATION)
+``` 
+
+# Differences between models 
+```{r}
+chi2 <- 2*(summary(model1.2)$logLik - summary(model1.1)$logLik)
+1-pchisq(chi2,1)
+
+# AIC comparison
+AIC(model1.1, model1.2, k=2)
+```
+
+Yes, the polynomial model is better 
+
+# Model1.3
+```{r model1.3}
+model1.3 <- lmer(LENGTH ~ poly(as.numeric(DEV_TEMP), 2, raw = TRUE)  + (1 |POPULATION) + (1 |FEMALE), 
+                 REML=FALSE,
+                 data=growth3) 
+
+summary(model1.3)
+r.squaredGLMM(model1.3) 
+
+dev_temp_pred$fit1.3 <- predict(model1.3, newdata = dev_temp_pred, re.form=NA) 
+growth3$pred_pop1.3 <- predict(model1.3, re.form=NA) 
+growth3$pred_geno1.3 <- predict(model1.3, re.form =~(1|FEMALE)) 
+
+ggplot(dev_temp_pred, aes(x = DEV_TEMP, y = fit1.3)) +
+  geom_jitter(data = growth3, aes(y = pred_geno1.3, colour = POPULATION), width=0.2) +
+  geom_smooth(data = growth3, 
+            aes(y=LENGTH, group=FEMALE, color=FEMALE), 
+            method = "lm")  +
+  geom_line(size = 2)+ 
+  theme_classic()
+```
+
+# Model comparison 
+```{r}
+chi2 <- 2*(summary(model1.3)$logLik - summary(model1.2)$logLik)
+1-pchisq(chi2, 1)
+
+# AIC comparison
+AIC(model1.1, model1.2, model1.3)
+```
+
+# Model1.4 
+```{r}
+model1.4 <- lmer(LENGTH ~ poly(as.numeric(DEV_TEMP), 2, raw = TRUE)  + (1 |POPULATION) + (1+DEV_TEMP|FEMALE), 
+                 REML=FALSE,
+                 data=growth3) 
+
+summary(model1.4)
+r.squaredGLMM(model1.4) 
+
+dev_temp_pred$fit1.4 <- predict(model1.4, newdata = dev_temp_pred, re.form=NA) 
+growth3$pred_pop1.4 <- predict(model1.4, re.form=NA) 
+growth3$pred_geno1.4 <- predict(model1.4, re.form =~(1+DEV_TEMP|FEMALE)) 
+
+ggplot(dev_temp_pred, aes(x = DEV_TEMP, y = fit1.4)) +
+  geom_jitter(data = growth3, aes(y = pred_geno1.4, colour = POPULATION), width=0.2) +
+  stat_smooth(data = growth3, 
+            aes(y=LENGTH, group=FEMALE, color=FEMALE), 
+            method="lm", 
+            formula=y~poly(x, 3, raw=TRUE), 
+            se=FALSE) +
+  geom_line(size = 2) + 
+  theme_classic()
+```
+
+# Model comparison 
+```{r}
+# Does adding genotype as a random intercept and slope further improve model fit? 
+# Likelihood ratio test
+chi2 <- 2*(summary(model1.4)$logLik - summary(model1.3)$logLik)
+# The df difference between models can be checked by looking at the df within the models being compared
+summary(model1.3)$logLik
+summary(model1.4)$logLik
+# Note that between model1.3 and model1.4 there is a change of 2 df, so the 
+# pchisq change needs to be specified with 2 df rather than 1 as in previous comparisons.
+1-pchisq(chi2, 2)
+
+# AIC comparison
+AIC(model1.1, model1.2, model1.3, model1.4)
+```
+
+# Model1.5 
+```{r warning=FALSE}
+model1.5 <- lmer(LENGTH ~ poly(as.numeric(DEV_TEMP), 2, raw = TRUE)  + (1 |POPULATION) + (1+DEV_TEMP + I(DEV_TEMP^2)|FEMALE), 
+                 REML=FALSE,
+                 data=growth3) 
+
+summary(model1.5)
+r.squaredGLMM(model1.5) 
+
+dev_temp_pred$fit1.5 <- predict(model1.5, newdata = dev_temp_pred, re.form=NA) 
+growth3$pred_pop1.5 <- predict(model1.5, re.form=NA) 
+growth3$pred_geno1.5 <- predict(model1.5, re.form =~(1+DEV_TEMP|FEMALE)) 
+
+ggplot(dev_temp_pred, aes(x = DEV_TEMP, y = fit1.5)) +
+  geom_jitter(data = growth3, aes(y = pred_geno1.5, colour = POPULATION), width=0.2) +
+  stat_smooth(data = growth3, 
+            aes(y=LENGTH, group=FEMALE, color=FEMALE), 
+            method="lm", 
+            formula=y~poly(x, 3, raw=TRUE), 
+            se=FALSE) +
+  geom_line(size = 2) +
+  theme_classic() 
+```
+
+# Model comparison 
+```{r}
+chi2 <- 2*(summary(model1.5)$logLik - summary(model1.4)$logLik)
+# The df difference between models can be checked by looking at the df within the models being compared
+summary(model1.4)$logLik
+summary(model1.5)$logLik
+# Note that between model1.3 and model1.4 there is a change of 3 df, so the 
+# pchisq change needs to be specified with 3 df rather than 1 or 2 as in previous comparisons.
+1-pchisq(chi2, 3)
+
+# AIC comparison
+AIC(model1.1, model1.2, model1.3, model1.4, model1.5)
+```
+
+# BLUPS 
+```{r}
+genotype_blups <- ranef(model1.5)$`FEMALE`
+genotype_index <- as.data.frame(as.factor(c(1:15)))
+genotype_data  <- cbind(genotype_index, genotype_blups)
+colnames(genotype_data) <- c("genotype", "BLUP_int", "BLUP_slope") 
+```
+
+# BLUPS by intercept
+```{r }
+ggplot(genotype_data, aes(genotype, BLUP_int)) + 
+  geom_point(aes(group = genotype, colour = genotype), size = 4) + 
+  ylab("BLUP intercept estimate") +
+  geom_hline(yintercept = 0, lty = 2) + theme_classic()
+```
+
+```{r}
+# BLUPs by slope
+ggplot(genotype_data, aes(genotype, BLUP_slope)) + 
+  geom_point(aes(group = genotype, colour = genotype), size = 4) + 
+  ylab("Plasticity (BLUP slope estimate)") +
+  geom_hline(yintercept = 0, lty = 2) + theme_classic()
+```
+
+```{r}
+# Add the BLUP slopes for the genotypes to the population average
+pop_av_slope <- fixef(model1.5)[2]
+genotype_data$genotype_slopes <- genotype_blups$DEV_TEMP + pop_av_slope 
+genotype_data$genotype <- row.names(genotype_data)
+```
+
+```{r}
+# BLUPs by slope + population-level average
+ggplot(genotype_data, aes(genotype, genotype_slopes)) + 
+  geom_point(aes(group = genotype, colour = genotype), size = 4) + 
+  ylab("Plasticity (population-average + BLUP slope estimate)") +
+  geom_hline(yintercept = 0, lty = 2) + theme_classic()
+```
+
+```{r}
+# Correlation between BLUP intercepts and slopes
+ggplot(genotype_data, aes(BLUP_int, BLUP_slope)) +
+  geom_point(aes(group = genotype, colour = genotype), size = 4) +
+  xlab("BLUP intercept estimate") +
+  ylab("BLUP slope estimate") +
+  theme_classic()
+```
+
+```{r}
+# Rank the BLUPs in order
+# Sort BLUPs by slope of most to least plastic
+genotype_data$genotype_ordered <- factor(genotype_data$genotype, 
+                                         levels = genotype_data$genotype[order(genotype_data$BLUP_slope)])
+ggplot(genotype_data, aes(genotype_ordered, BLUP_slope)) +
+  geom_bar(stat = "identity", aes(group = genotype, fill = genotype)) +
+  xlab("Genotype (in ranked order of plasticity)") +
+  ylab("Plasticity (BLUP slope estimate)") +
+  theme_classic() + 
+  theme(axis.text.x = element_text(angle =90, vjust=0.5, hjust=1))
+```
+
+```{r}
+# Another way to visualise the plasticity rank for negative data is by adding
+# the BLUP slope values to the population-level average effect of temperature
+ggplot(genotype_data, aes(genotype_ordered, genotype_slopes)) +
+  geom_bar(stat = "identity", aes(group = genotype, fill = genotype)) +
+  xlab("Genotype (in ranked order of plasticity)") +
+  ylab("Plasticity (population-average + BLUP slope estimate)") +
+  theme_classic()
+```
+

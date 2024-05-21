@@ -254,7 +254,83 @@ ggarrange(male.mass.plot, female.mass.plot, male.length.plot, female.length.plot
           ncol=2, 
           nrow=2)
 ```
-# {-}  
+
+## Age 
+
+```{r eda-5, warning=FALSE, message=FALSE, echo=FALSE, fig.height=4, fig.width=5} 
+
+
+p1 <- ggplot(growth2, aes(x=AGE_DAYS, y=MASS)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Age") +
+  theme_classic();p1
+
+
+#eda1 <- ggarrange(p1,p2,p3,p4,p5, 
+          #ncol = 2, 
+          #nrow=3); eda1
+
+```
+## Female Mass 
+
+```{r eda-7, warning=FALSE, message=FALSE, echo=FALSE, fig.height=4, fig.width=5} 
+
+
+p1 <- ggplot(growth2, aes(x=FEMALE_MASS, y=MASS)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Age") +
+  theme_classic();p1
+
+
+#eda1 <- ggarrange(p1,p2,p3,p4,p5, 
+          #ncol = 2, 
+          #nrow=3); eda1
+
+```
+
+## Female Latitude 
+
+```{r eda-8, warning=FALSE, message=FALSE, echo=FALSE, fig.height=4, fig.width=5} 
+
+
+p1 <- ggplot(growth2, aes(x=FEMALE_LAT, y=MASS)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Age") +
+  theme_classic();p1
+
+
+#eda1 <- ggarrange(p1,p2,p3,p4,p5, 
+          #ncol = 2, 
+          #nrow=3); eda1
+
+```
+
+## Density
+
+```{r eda-density, warning=FALSE, message=FALSE, echo=FALSE, fig.height=4, fig.width=5} 
+
+
+p1 <- ggplot(growth2, aes(x=DENSITY, y=MASS)) + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(methos="lm", se=TRUE, fill=NA,
+              formula = y~poly(x, 3, raw=TRUE), color = "red") + 
+  ggtitle("Age") +
+  theme_classic();p1
+
+
+#eda1 <- ggarrange(p1,p2,p3,p4,p5, 
+          #ncol = 2, 
+          #nrow=3); eda1
+
+```
+
+## {-}  
 
 # Removal of outliers
 
@@ -522,10 +598,9 @@ mass.priors <- prior(normal(1.13, 0.20), class="Intercept") +
 
 ```{r model3.1, cache=TRUE}
 f.model3.1 <- bf(MASS ~ 1 + 
-                         DEV_TEMP*REGION + 
-                         scale(FEMALE_MASS, center=TRUE, scale=TRUE) + 
+                         DEV_TEMP*REGION +  
                          scale(DENSITY, center=TRUE, scale=TRUE) + 
-                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
+                         #scale(AGE_DAYS, center=TRUE, scale=TRUE) +
                          scale(LENGTH, center=TRUE, scale=TRUE) + 
                          (1| FEMALE) + (1| TANK) + (1|LEVEL) + (1| POPULATION), 
                          family=gaussian()) 
@@ -576,9 +651,8 @@ stan_dens(model3.1$fit, separate_chains = TRUE)
 ```{r model3.2, cache=TRUE}
 f.model3.2 <- bf(MASS ~ 1 + 
                          DEV_TEMP*REGION + 
-                         scale(FEMALE_MASS, center=TRUE, scale=TRUE) + 
                          scale(DENSITY, center=TRUE, scale=TRUE) + 
-                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
+                         #scale(AGE_DAYS, center=TRUE, scale=TRUE) +
                          poly(scale(LENGTH, center=TRUE, scale=TRUE), 2) + 
                          (1| FEMALE) + (1| TANK) + (1|LEVEL) + (1| POPULATION), 
                          family=gaussian()) 
@@ -624,64 +698,9 @@ stan_dens(model3.2$fit, separate_chains = TRUE)
 
 #### {-}
 
-
-### Model3.3 (geographical) {.tabset}
-#### Model
-```{r fit-model3.3, cache=TRUE}
-f.model3.3 <- bf(MASS ~ 1 + 
-                         DEV_TEMP*REGION + 
-                         scale(FEMALE_MASS, center=TRUE, scale=TRUE) + 
-                         scale(DENSITY, center=TRUE, scale=TRUE) + 
-                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
-                         scale(LENGTH, center=TRUE, scale=TRUE) + 
-                         scale(FEMALE_LAT, center=TRUE, scale=TRUE) +  
-                         (1| FEMALE) + (1| TANK) + (1|LEVEL) + (1| POPULATION), 
-                         family=gaussian())
-
-model3.3 <- brm(f.model3.3,
-              data = growth3, 
-              prior = mass.priors,
-              warmup = 500, 
-              iter = 5000,
-              seed=123, 
-              sample_prior = "yes",
-              cores=2, 
-              save_pars = save_pars(all=TRUE),  
-              chains = 2, 
-              thin = 5, 
-              control = list(adapt_delta=0.95)) 
-saveRDS(model3.3, file="./02.mass_data_analysis_files/model3.3.RDS")
-```
-
-#### DHARMa
-```{r model3.3-DHARMa}
-#--- distribution check ---#
-pp_check(model3.3, type = 'dens_overlay')
-
-#--- DHARMa checks ---#
-preds <- posterior_predict(model3.3, ndraws=250, summary=FALSE)
-model3.3_resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = growth3$MASS, 
-                              fittedPredictedResponse = apply(preds, 2, mean), 
-                              integerResponse = 'student')
-plot(model3.3_resids) ; testDispersion(model3.3_resids)
-```
-
-#### MCMC Diagnostics
-
-```{r model3.3-mcmc-diag, fig.height=9}
-stan_trace(model3.3$fit)
-stan_ac(model3.3$fit) 
-stan_rhat(model3.3$fit) 
-stan_ess(model3.3$fit)
-stan_dens(model3.3$fit, separate_chains = TRUE)
-```
-
-#### {-}
-
 ### LOO 
 ```{r model-comparisons-3}
-LOO(model3.1, model3.2, model3.3) 
+LOO(model3.1, model3.2) 
 ```
 
 ### {-}
@@ -695,26 +714,24 @@ There are issues with this model lets fit it using a Gamma distribution.
 # Re-fit model [gamma]
 
 ```{r model3.3_gamma1-priors}
-model3.3_gamma1.priors <- prior(normal(1.13, 0.20), class="Intercept") +  
+model_gamma.priors <- prior(normal(1.13, 0.20), class="Intercept") +  
   prior(normal(0, 0.25), class="b")
 ```
 
-## Model3.3_gamma1 {.tabset}
+## Model3.1_gamma1 {.tabset}
 ### Model
 ```{r model3.3_gamma1, cache=TRUE}
-f.model3.3_gamma1 <- bf(MASS ~ 1 + 
-                         DEV_TEMP*REGION + 
-                         scale(FEMALE_MASS, center=TRUE, scale=TRUE) + 
+f.model3.1_gamma1 <- bf(MASS ~ 1 + 
+                         DEV_TEMP*REGION +  
                          scale(DENSITY, center=TRUE, scale=TRUE) + 
-                         scale(AGE_DAYS, center=TRUE, scale=TRUE) +
-                         scale(LENGTH, center=TRUE, scale=TRUE) + 
-                         scale(FEMALE_LAT, center=TRUE, scale=TRUE) +  
+                         #scale(AGE_DAYS, center=TRUE, scale=TRUE) +
+                         scale(LENGTH, center=TRUE, scale=TRUE) +  
                          (1| FEMALE) + (1| TANK) + (1|LEVEL) + (1| POPULATION), 
                          family=Gamma(link = "log"))
 
-model3.3_gamma1 <- brm(f.model3.3_gamma1,
+model3.1_gamma1 <- brm(f.model3.1_gamma1,
               data = growth3, 
-              prior = model3.3_gamma1.priors,
+              prior = model_gamma.priors,
               warmup = 500, 
               iter = 5000,
               seed=123, 
@@ -724,31 +741,31 @@ model3.3_gamma1 <- brm(f.model3.3_gamma1,
               chains = 2, 
               thin = 5, 
               control = list(adapt_delta=0.95))  
-saveRDS(model3.3_gamma1, file="./02.mass_data_analysis_files/model3.3_gamma1.RDS")
+saveRDS(model3.1_gamma1, file="./02.mass_data_analysis_files/model3.1_gamma1.RDS")
 ```
 
 ### DHARMa
 ```{r model3.1_gamma1-DHARMa}
 #--- distribution check ---#
-pp_check(model3.3_gamma1, type = 'dens_overlay')
+pp_check(model3.1_gamma1, type = 'dens_overlay')
 
 #--- DHARMa checks ---#
-preds <- posterior_predict(model3.3_gamma1, ndraws=250, summary=FALSE)
-model3.3_gamma1_resids <- createDHARMa(simulatedResponse = t(preds), 
+preds <- posterior_predict(model3.1_gamma1, ndraws=250, summary=FALSE)
+model3.1_gamma1_resids <- createDHARMa(simulatedResponse = t(preds), 
                               observedResponse = growth3$MASS, 
                               fittedPredictedResponse = apply(preds, 2, mean), 
                               integerResponse = 'student')
-plot(model3.3_gamma1_resids) ; testDispersion(model3.3_gamma1_resids); testDispersion(model3.1_resids, plot = F, alternative = "greater")
+plot(model3.1_gamma1_resids) ; testDispersion(model3.1_gamma1_resids); testDispersion(model3.1_gamma1_resids, plot = F, alternative = "greater")
 ```
 
 ### MCMC Diagnostics
 
 ```{r model3.3_gamma1-mcmc-diag, fig.height=9}
-stan_trace(model3.3_gamma1$fit)
-stan_ac(model3.3_gamma1$fit) 
-stan_rhat(model3.3_gamma1$fit) 
-stan_ess(model3.3_gamma1$fit)
-stan_dens(model3.3_gamma1$fit, separate_chains = TRUE)
+stan_trace(model3.1_gamma1$fit)
+stan_ac(model3.1_gamma1$fit) 
+stan_rhat(model3.1_gamma1$fit) 
+stan_ess(model3.1_gamma1$fit)
+stan_dens(model3.1_gamma1$fit, separate_chains = TRUE)
 ```
 
 #### {-}
@@ -758,7 +775,7 @@ stan_dens(model3.3_gamma1$fit, separate_chains = TRUE)
 ## conditional_effects 
 
 ```{r partial-plots-cond-eff-1}
-model3.3_gamma1 |> 
+model3.1_gamma1 |> 
   conditional_effects(spaghetti = TRUE, ndraws=200) 
 ``` 
 
@@ -767,52 +784,52 @@ model3.3_gamma1 |>
 ## summary 
 
 ```{r summary-100}
-summary(model3.3_gamma1)
+summary(model3.1_gamma1)
 #car::Anova(model1.geo.gamma)
 ```
 
 ## R2 
 
 ```{r r-squared}
-model3.3_gamma1 |> bayes_R2(summary = FALSE) |> median_hdci()
+model3.1_gamma1 |> bayes_R2(summary = FALSE) |> median_hdci()
 ```
 
 ## tidyMCMC 
 
 ```{r tidy}
-tidyMCMC(model3.3_gamma1, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+tidyMCMC(model3.1_gamma1, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
 ```
 
 ## gather draws 
 
 ```{r gather_draws}
 #model1.re.wo |> get_variables()
-model3.3_gamma1 |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+model3.1_gamma1 |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
   median_hdci()
 ``` 
 
 ## bayesplot 
 
 ```{r bayesplot-1}
-model3.3_gamma1 |> mcmc_plot(type='intervals')
+model3.1_gamma1 |> mcmc_plot(type='intervals')
 ```
 
 ## emmeans - pariwise 
 
 ```{r emmeans-pairwise}
-model3.3_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary(infer=TRUE)
+model3.1_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary(infer=TRUE)
 
-model3.3_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> confint()
+model3.1_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> confint()
 
-model3.3_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() 
+model3.1_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() 
 
-model3.3_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> confint()
+model3.1_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> confint()
 ```
 
 ## probabilities 
 ```{r probabilities}
 #model1.geo.gamma |> emmeans(~ REGION | DEV_TEMP, at = list(DEV_TEMP = 31.5, length.out = 10)) |> pairs(type = 'response')
-mtsqst <- model3.3_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP)
+mtsqst <- model3.1_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP)
 mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
 mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 ```
@@ -822,10 +839,10 @@ mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 # summary figure 
 
 ```{r summary-figure-1, warning=FALSE, message=FALSE}
-var <- get_variables(model3.3_gamma1)
-var1 <- get_variables(model3.3_gamma1)[c(1:4,10,11)] 
+var <- get_variables(model3.1_gamma1)
+var1 <- get_variables(model3.1_gamma1)[c(1:4,7,8)] 
 
-int_draws_spread <- model3.3_gamma1 |> spread_draws(!!!syms(var1)) 
+int_draws_spread <- model3.1_gamma1 |> spread_draws(!!!syms(var1)) 
 
 int_draws_spread2 <- int_draws_spread |> 
   gather_draws(b_Intercept, b_REGIONleading) |> 
@@ -874,9 +891,9 @@ mass.plot <- int_draws_plotting |>
   #geom_hline(yintercept = 0, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
   stat_halfeye(aes(fill = EXP_GROUP, fill_ramp = after_stat(level)), 
                point_interval = mode_hdci, 
-               .width = c(.66, .90, .95)) + 
+               .width = c(.66, .89, .95)) + 
   scale_fill_ramp_discrete(na.translate=FALSE, 
-                           labels =c("0.95","0.90","0.66"), 
+                           labels =c("0.95","0.89","0.66"), 
                            name = "Credible interval") +
   scale_fill_manual(values = c("lightskyblue" ,"dodgerblue2", "dodgerblue4","coral", "red2","firebrick4"))+ 
   scale_y_continuous(limits=c(0,2), breaks = seq(0,2, .5))+
