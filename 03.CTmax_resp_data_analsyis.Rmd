@@ -39,7 +39,8 @@ library(broom.mixed) # model investigation
 library(emmeans) # pairwise comparisons
 library(rstanarm) # pairwise comparisons - need for emmeans 
 library(ggpubr) # arranging figures 
-library(mgcv) # GAM
+library(mgcv) # GAM 
+library(modelr) # plotting
 ```
 
 # Set working directory 
@@ -402,7 +403,7 @@ rate.priors <- prior(normal(430, 0.25), class="Intercept") +
 
 ```{r model1.p1, cache=TRUE}
 f.model1.p1 <- bf(rate.output ~ 1 + 
-                         dev.temp*region + t +
+                         dev.temp*region + Temperature +
                          scale(mass, center=TRUE, scale=TRUE) + 
                          (1| female) + (1| tank) , 
                          family=gaussian()) 
@@ -453,7 +454,7 @@ stan_dens(model1.p1$fit, separate_chains = TRUE)
 
 ```{r model1.p2, cache=TRUE}
 f.model1.p2 <- bf(rate.output ~ 1 + 
-                         dev.temp*region + poly(t, 2) +
+                         dev.temp*region + poly(Temperature, 2) +
                          scale(mass, center=TRUE, scale=TRUE) + 
                          (1| female) + (1| tank) , 
                          family=gaussian()) 
@@ -504,7 +505,7 @@ stan_dens(model1.p2$fit, separate_chains = TRUE)
 
 ```{r model1.p3, cache=TRUE}
 f.model1.p3 <- bf(rate.output ~ 1 + 
-                         dev.temp*region + poly(t, 3) +
+                         dev.temp*region + poly(Temperature, 3) +
                          scale(mass, center=TRUE, scale=TRUE) + 
                          (1| female) + (1| tank) , 
                          family=gaussian()) 
@@ -558,15 +559,16 @@ LOO(model1.p1, model1.p2,model1.p3)
 
 # Fit model [fixed factors - GAM] {.tabset} 
 
-## GAM model 
-```{r GAM, cache=TRUE}
-f.model1.gam <- bf(rate.output ~ 1 + 
-                         dev.temp*region + s(t) +
+## GAM model k=4 {.tabset}  
+### GAM model k=4
+```{r GAMK4, cache=TRUE}
+f.model1.gamk4 <- bf(rate.output ~ 1 + 
+                         t2(dev.temp,region,Temperature, k=4, bs="fs") + 
                          scale(mass, center=TRUE, scale=TRUE) + 
-                         (1| female) + (1| tank) , 
+                         (1| female) + (1| tank), 
                          family=gaussian()) 
 
-model1.gam <- brm(f.model1.gam,
+model1.gamk4 <- brm(f.model1.gamk4,
               data = lat_resp_dat2, 
               prior = rate.priors,
               warmup = 500, 
@@ -578,30 +580,209 @@ model1.gam <- brm(f.model1.gam,
               chains = 2, 
               thin = 5, 
               control = list(adapt_delta=0.95)) 
-saveRDS(model1.gam, file="./03.CTmax_resp_data_analsyis_files/model1.gam.RDS")
+saveRDS(model1.gamk4, file="./03.CTmax_resp_data_analsyis_files/model1.gamk4.RDS")
 ```
 
-## DHARMa
-```{r GAM-DHARMa}
+### DHARMa
+```{r GAMK4-DHARMa}
 #--- distribution check ---#
-pp_check(model1.gam, type = 'dens_overlay_grouped', ndraws=150, group="region")
+pp_check(model1.gamk4, type = 'dens_overlay_grouped', ndraws=150, group="region")
 
 #--- DHARMa checks ---#
-preds <- posterior_predict(model1.gam, ndraws=250, summary=FALSE)
-model1.gam_resids <- createDHARMa(simulatedResponse = t(preds), 
+preds <- posterior_predict(model1.gamk4, ndraws=250, summary=FALSE)
+model1.gamk4_resids <- createDHARMa(simulatedResponse = t(preds), 
                               observedResponse = lat_resp_dat2$rate.output, 
                               fittedPredictedResponse = apply(preds, 2, mean), 
                               integerResponse = 'student')
-plot(model1.gam_resids) ; testDispersion(model1.gam_resids)
+plot(model1.gamk4_resids) ; testDispersion(model1.gamk4_resids)
 ```
 
-## MCMC diagnostics
-```{r GAM-mcmc-diag, fig.height=9}
-stan_trace(model1.gam$fit)
-stan_ac(model1.gam$fit) 
-stan_rhat(model1.gam$fit) 
-stan_ess(model1.gam$fit)
-stan_dens(model1.gam$fit, separate_chains = TRUE)
+### MCMC diagnostics
+```{r GAMK4-mcmc-diag, fig.height=9}
+stan_trace(model1.gamk4$fit)
+stan_ac(model1.gamk4$fit) 
+stan_rhat(model1.gamk4$fit) 
+stan_ess(model1.gamk4$fit)
+stan_dens(model1.gamk4$fit, separate_chains = TRUE)
+```
+### {-}
+
+## GAM model k=3 {.tabset}  
+### GAM model k=3
+```{r GAMK3, cache=TRUE}
+f.model1.gamk3 <- bf(rate.output ~ 1 + 
+                         t2(dev.temp,region,Temperature, k=3, bs="fs") + 
+                         scale(mass, center=TRUE, scale=TRUE) + 
+                         (1| female) + (1| tank), 
+                         family=gaussian()) 
+
+model1.gamk3 <- brm(f.model1.gamk3,
+              data = lat_resp_dat2, 
+              prior = rate.priors,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE), 
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+saveRDS(model1.gamk3, file="./03.CTmax_resp_data_analsyis_files/model1.gamk3.RDS")
+```
+
+### DHARMa
+```{r GAMK3-DHARMa}
+#--- distribution check ---#
+pp_check(model1.gamk3, type = 'dens_overlay_grouped', ndraws=150, group="region")
+
+#--- DHARMa checks ---#
+preds <- posterior_predict(model1.gamk3, ndraws=250, summary=FALSE)
+model1.gamk3_resids <- createDHARMa(simulatedResponse = t(preds), 
+                              observedResponse = lat_resp_dat2$rate.output, 
+                              fittedPredictedResponse = apply(preds, 2, mean), 
+                              integerResponse = 'student')
+plot(model1.gamk3_resids) ; testDispersion(model1.gamk3_resids)
+```
+
+### MCMC diagnostics
+```{r GAMK3-mcmc-diag, fig.height=9}
+stan_trace(model1.gamk3$fit)
+stan_ac(model1.gamk3$fit) 
+stan_rhat(model1.gamk3$fit) 
+stan_ess(model1.gamk3$fit)
+stan_dens(model1.gamk3$fit, separate_chains = TRUE)
+```
+### {-}
+
+```{r}
+AIC(model1.gamk3, model1.gamk4)
 ```
 
 ## {-}
+
+# Partial effects plots 
+
+## conditional_effects 
+
+```{r partial-plots-cond-eff-1}
+model1.gamk3 |> 
+  conditional_effects(spaghetti = TRUE, ndraws=200) 
+``` 
+
+# Model investigation {.tabset}
+
+## summary 
+
+```{r summary-100}
+summary(model1.gamk4)
+#car::Anova(model1.geo.gamma)
+```
+
+## R2 
+
+```{r r-squared}
+model1.gamk4 |> bayes_R2(summary = FALSE) |> median_hdci()
+```
+
+## tidyMCMC 
+
+```{r tidy}
+tidyMCMC(model1.gamk4, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+```
+
+## gather draws 
+
+```{r gather_draws}
+#model1.re.wo |> get_variables()
+model1.gamk4 |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+  median_hdci()
+``` 
+
+## bayesplot 
+
+```{r bayesplot-1}
+model1.gamk4 |> mcmc_plot(type='intervals')
+```
+
+## emmeans - pariwise 
+
+```{r emmeans-pairwise}
+model1.gamk4 |> emmeans(pairwise ~ region*dev.temp, type="response") |> pairs(by="dev.temp") |> summary(infer=TRUE)
+
+model1.gamk4 |> emmeans(pairwise ~ region*dev.temp, type="response") |> pairs(by="region") |> confint()
+
+model1.gamk4 |> emmeans(pairwise ~ region*dev.temp, type="response") |> regrid() 
+
+model1.gamk4 |> emmeans(pairwise ~ region*dev.temp, type="response") |> pairs(by="region") |> confint()
+```
+
+## emtrenns - pariwise 
+
+```{r emtrends-pairwise}
+emtrends(model1.gamk4, specs=pairwise~dev.temp*region, var = "Temperature")  
+
+```
+
+## probabilities 
+```{r probabilities}
+mtsqst <- model1.gamk4 |> emmeans(pairwise ~ region*dev.temp)
+mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
+mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
+```
+
+# summary figure 
+
+```{r summary-figure-1, warning=FALSE, message=FALSE}
+resp.plot <- lat_resp_dat2 |> 
+  group_by(region, dev.temp) |> 
+  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+                          to=max(lat_resp_dat2$Temperature), 
+                          length.out=100), 
+            mass=0.00148299) |> 
+  add_fitted_draws(model1.gamk4, 
+                   n=300, 
+                   re_formula=NA) |>  
+  unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
+  ggplot(aes(x=Temperature, color=exp_group)) + 
+  geom_line(aes(y=.value, group=paste(exp_group, .draw)), alpha=0.05) + 
+  geom_smooth(aes(y=.value, color=exp_group), se=FALSE, size=1.5) + 
+  theme_classic() + 
+  facet_wrap(~dev.temp); resp.plot
+```
+
+
+```{r summary-figure-2, warning=FALSE, message=FALSE}
+resp.plot2 <- lat_resp_dat2 |> 
+  group_by(region, dev.temp) |> 
+  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+                          to=max(lat_resp_dat2$Temperature), 
+                          length.out=100), 
+            mass=0.00148299) |> 
+  add_fitted_draws(model1.gamk4, 
+                   n=300, 
+                   re_formula=NA) |>  
+  unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
+  ggplot(aes(x=Temperature, color=exp_group)) + 
+  geom_line(aes(y=.value, group=paste(exp_group, .draw)), alpha=0.05) + 
+  geom_smooth(aes(y=.value, color=exp_group), se=FALSE, size=1.5) + 
+  theme_classic() + 
+  facet_wrap(~region); resp.plot2
+```
+
+```{r summary-figure-3, warning=FALSE, message=FALSE}
+resp.plot3 <- lat_resp_dat2 |> 
+  group_by(region, dev.temp) |> 
+  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+                          to=max(lat_resp_dat2$Temperature), 
+                          length.out=100), 
+            mass=0.00148299) |> 
+  add_fitted_draws(model1.gamk4, 
+                   n=300, 
+                   re_formula=NA) |>  
+  unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
+  ggplot(aes(x=Temperature, color=exp_group)) + 
+  geom_line(aes(y=.value, group=paste(exp_group, .draw)), alpha=0.05) + 
+  geom_smooth(aes(y=.value, color=exp_group), se=FALSE, size=1.5) + 
+  theme_classic(); resp.plot3
+```
