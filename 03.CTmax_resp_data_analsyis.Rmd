@@ -41,6 +41,7 @@ library(rstanarm) # pairwise comparisons - need for emmeans
 library(ggpubr) # arranging figures 
 library(mgcv) # GAM 
 library(modelr) # plotting
+library(segmented)
 ```
 
 # Set working directory 
@@ -823,6 +824,7 @@ delete <- lat_resp_dat2 |>
   unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
   filter(dev.temp.region == "28_leading")  
 
+spline_fit <- smooth.spline(delete$Temperature, delete$.value, nknots = 4)
 
 ggplot(delete, aes(x=Temperature, y=.value)) + 
   geom_point(color="black", alpha=0.05, size=1) + 
@@ -830,12 +832,12 @@ ggplot(delete, aes(x=Temperature, y=.value)) +
                                         color="red"), 
               size=2) 
 
-spline_fit <- smooth.spline(delete$Temperature, delete$.value, nknots = 4) 
+ 
 
 my.lm <- lm(data=data, y ~ x) 
 my.seg <- segmented(my.lm, 
                     seg.Z = ~x, 
-                    psi=list(x=c(33,36)))
+                    psi=list(x=c(31,36)))
 summary(my.seg) 
 
 my.seg$psi 
@@ -851,8 +853,58 @@ ggplot(delete, aes(x=Temperature, y=.value)) +
   geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
                                         color="red"), 
               size=2) + 
-  geom_vline(xintercept = 33.9)
+  geom_vline(xintercept = 34.34)
 ```
+### piecewise linear regression 
+```{r}
+delete <- lat_resp_dat2 |> 
+  group_by(region, dev.temp,dev.temp.region) |> 
+  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+                          to=max(lat_resp_dat2$Temperature), 
+                          length.out=100), 
+            mass=0.00148299) |> 
+  add_fitted_draws(model1.gamk4, 
+                   n=300, 
+                   re_formula=NA) |>  
+  unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
+  filter(dev.temp.region == "31_core")  
+
+spline_fit <- smooth.spline(delete$Temperature, delete$.value, nknots = 4) 
+
+ggplot(delete, aes(x=Temperature, y=.value)) + 
+  geom_point(color="black", alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
+                                        color="red"), 
+              size=2) 
+
+data <- as.data.frame(x= spline_fit$x) |> 
+  mutate(y = spline_fit$y)|> 
+  rename(x = `spline_fit$x`)
+
+
+my.lm <- lm(data=data, y ~ x) 
+my.seg <- segmented(my.lm, 
+                    seg.Z = ~x, 
+                    psi=list(x=c(31,36.5)))
+summary(my.seg) 
+
+my.seg$psi 
+slope(my.seg)
+
+my.fitted <- fitted(my.seg)
+my.model <- data.frame(temperature = data$x, rate.output= my.fitted)
+
+ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+
+ggplot(delete, aes(x=Temperature, y=.value)) + 
+  geom_point(color="black", alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
+                                        color="red"), 
+              size=2) + 
+  geom_vline(xintercept = my.seg$psi[1,2]); ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+```
+
+
 ### piecewise linear regression 
 ```{r}
 delete2 <- lat_resp_dat2 |> 
@@ -883,7 +935,7 @@ data <- as.data.frame(x= spline_fit$x) |>
 my.lm <- lm(data=data, y ~ x) 
 my.seg <- segmented(my.lm, 
                     seg.Z = ~x, 
-                    psi=list(x=c(33,36)))
+                    psi=list(x=c(31,36.5)))
 summary(my.seg) 
 
 my.seg$psi 
@@ -899,5 +951,5 @@ ggplot(delete, aes(x=Temperature, y=.value)) +
   geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
                                         color="red"), 
               size=2) + 
-  geom_vline(xintercept = my.seg$psi[1,2])
+  geom_vline(xintercept = my.seg$psi[1,2]); ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
 ```
