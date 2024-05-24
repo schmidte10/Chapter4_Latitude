@@ -93,7 +93,9 @@ lat_resp_dat2 <- lat_resp_dat |>
                            tank >= 200 & tank <= 299 ~ 2,
                            tank >= 300 & tank <= 399 ~ 3,
                            TRUE ~ NA_real_)), 
-         female = factor(female))
+         female = factor(female)) |> 
+  unite("dev.temp.region",c(dev.temp,region), remove=FALSE) |> 
+  mutate(dev.temp.region = factor(dev.temp.region))
 ```
 
 ```{r data-manipulation-2, eval=TRUE, echo=FALSE}
@@ -561,9 +563,10 @@ LOO(model1.p1, model1.p2,model1.p3)
 
 ## GAM model k=4 {.tabset}  
 ### GAM model k=4
-```{r GAMK4, cache=TRUE}
+```{r GAMK4, cache=TRUE} 
+
 f.model1.gamk4 <- bf(rate.output ~ 1 + 
-                         t2(dev.temp,region,Temperature, k=4, bs="fs") + 
+                         t2(dev.temp,region,Temperature, k=4, bs="fs", by=dev.temp.region) + 
                          scale(mass, center=TRUE, scale=TRUE) + 
                          (1| female) + (1| tank), 
                          family=gaussian()) 
@@ -586,7 +589,7 @@ saveRDS(model1.gamk4, file="./03.CTmax_resp_data_analsyis_files/model1.gamk4.RDS
 ### DHARMa
 ```{r GAMK4-DHARMa}
 #--- distribution check ---#
-pp_check(model1.gamk4, type = 'dens_overlay_grouped', ndraws=150, group="region")
+pp_check(model1.gamk4, type = 'dens_overlay_grouped', ndraws=150, group="dev.temp.region")
 
 #--- DHARMa checks ---#
 preds <- posterior_predict(model1.gamk4, ndraws=250, summary=FALSE)
@@ -611,7 +614,7 @@ stan_dens(model1.gamk4$fit, separate_chains = TRUE)
 ### GAM model k=3
 ```{r GAMK3, cache=TRUE}
 f.model1.gamk3 <- bf(rate.output ~ 1 + 
-                         t2(dev.temp,region,Temperature, k=3, bs="fs") + 
+                         t2(dev.temp,region,Temperature, k=3, bs="fs", by=dev.temp.region) + 
                          scale(mass, center=TRUE, scale=TRUE) + 
                          (1| female) + (1| tank), 
                          family=gaussian()) 
@@ -666,7 +669,7 @@ AIC(model1.gamk3, model1.gamk4)
 ## conditional_effects 
 
 ```{r partial-plots-cond-eff-1}
-model1.gamk3 |> 
+model1.gamk4 |> 
   conditional_effects(spaghetti = TRUE, ndraws=200) 
 ``` 
 
@@ -735,7 +738,7 @@ mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
 
 ```{r summary-figure-1, warning=FALSE, message=FALSE}
 resp.plot <- lat_resp_dat2 |> 
-  group_by(region, dev.temp) |> 
+  group_by(region, dev.temp,dev.temp.region) |> 
   data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
                           to=max(lat_resp_dat2$Temperature), 
                           length.out=100), 
@@ -754,7 +757,7 @@ resp.plot <- lat_resp_dat2 |>
 
 ```{r summary-figure-2, warning=FALSE, message=FALSE}
 resp.plot2 <- lat_resp_dat2 |> 
-  group_by(region, dev.temp) |> 
+  group_by(region, dev.temp,dev.temp.region) |> 
   data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
                           to=max(lat_resp_dat2$Temperature), 
                           length.out=100), 
@@ -772,7 +775,7 @@ resp.plot2 <- lat_resp_dat2 |>
 
 ```{r summary-figure-3, warning=FALSE, message=FALSE}
 resp.plot3 <- lat_resp_dat2 |> 
-  group_by(region, dev.temp) |> 
+  group_by(region, dev.temp,dev.temp.region) |> 
   data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
                           to=max(lat_resp_dat2$Temperature), 
                           length.out=100), 
@@ -785,4 +788,116 @@ resp.plot3 <- lat_resp_dat2 |>
   geom_line(aes(y=.value, group=paste(exp_group, .draw)), alpha=0.05) + 
   geom_smooth(aes(y=.value, color=exp_group), se=FALSE, size=1.5) + 
   theme_classic(); resp.plot3
+```
+
+# Line segment analysis 
+```{r line-segment-analysis}
+summary(model1.gamk4)
+
+model1.gamk4 |> conditional_smooths(smooths = 't2(dev.temp,region,Temperature,k=4,bs="fs",by=dev.temp.region)')
+
+smooths <- posterior_predict(model1.gamk4, newdata = lat_resp_dat2, nsamples = 1000) 
+first_derivative <- diff(smooths, difference =1)
+second_derivative <- diff(smooths, difference =2)
+inflection_points <- apply(sign(second_derivative), 2, function(x) which(diff(x) != 0)) 
+inflection_points
+
+newdata <- expand.grid(region = lat_resp_dat2$region,
+                       dev.temp = lat_resp_dat2$dev.temp,
+                       Temperature = seq(min(lat_resp_dat2$Temperature), max(lat_resp_dat2$Temperature), length.out = 10),
+                       group = levels(lat_resp_dat2$dev.temp.region)) 
+
+```
+
+### piecewise linear regression 
+```{r}
+delete <- lat_resp_dat2 |> 
+  group_by(region, dev.temp,dev.temp.region) |> 
+  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+                          to=max(lat_resp_dat2$Temperature), 
+                          length.out=100), 
+            mass=0.00148299) |> 
+  add_fitted_draws(model1.gamk4, 
+                   n=300, 
+                   re_formula=NA) |>  
+  unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
+  filter(dev.temp.region == "28_leading")  
+
+
+ggplot(delete, aes(x=Temperature, y=.value)) + 
+  geom_point(color="black", alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
+                                        color="red"), 
+              size=2) 
+
+spline_fit <- smooth.spline(delete$Temperature, delete$.value, nknots = 4) 
+
+my.lm <- lm(data=data, y ~ x) 
+my.seg <- segmented(my.lm, 
+                    seg.Z = ~x, 
+                    psi=list(x=c(33,36)))
+summary(my.seg) 
+
+my.seg$psi 
+slope(my.seg)
+
+my.fitted <- fitted(my.seg)
+my.model <- data.frame(temperature = data$x, rate.output= my.fitted)
+
+ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+
+ggplot(delete, aes(x=Temperature, y=.value)) + 
+  geom_point(color="black", alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
+                                        color="red"), 
+              size=2) + 
+  geom_vline(xintercept = 33.9)
+```
+### piecewise linear regression 
+```{r}
+delete2 <- lat_resp_dat2 |> 
+  group_by(region, dev.temp,dev.temp.region) |> 
+  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+                          to=max(lat_resp_dat2$Temperature), 
+                          length.out=100), 
+            mass=0.00148299) |> 
+  add_fitted_draws(model1.gamk4, 
+                   n=300, 
+                   re_formula=NA) |>  
+  unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
+  filter(dev.temp.region == "28_core")  
+
+spline_fit <- smooth.spline(delete$Temperature, delete$.value, nknots = 4) 
+
+ggplot(delete, aes(x=Temperature, y=.value)) + 
+  geom_point(color="black", alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
+                                        color="red"), 
+              size=2) 
+
+data <- as.data.frame(x= spline_fit$x) |> 
+  mutate(y = spline_fit$y)|> 
+  rename(x = `spline_fit$x`)
+
+
+my.lm <- lm(data=data, y ~ x) 
+my.seg <- segmented(my.lm, 
+                    seg.Z = ~x, 
+                    psi=list(x=c(33,36)))
+summary(my.seg) 
+
+my.seg$psi 
+slope(my.seg)
+
+my.fitted <- fitted(my.seg)
+my.model <- data.frame(temperature = data$x, rate.output= my.fitted)
+
+ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+
+ggplot(delete, aes(x=Temperature, y=.value)) + 
+  geom_point(color="black", alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
+                                        color="red"), 
+              size=2) + 
+  geom_vline(xintercept = my.seg$psi[1,2])
 ```
