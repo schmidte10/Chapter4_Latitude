@@ -511,6 +511,7 @@ model1.1 |> mcmc_plot(type='intervals')
 model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
 model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> summary()
 model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> confint()
+model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response")
 model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() 
 ```
 
@@ -577,10 +578,10 @@ ctmax.plot <- int_draws_plotting |>
   ggplot(aes(x=EXP_GROUP, y=CTMAX)) + 
   #geom_hline(yintercept = 0, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
   stat_halfeye(aes(fill = EXP_GROUP, fill_ramp = after_stat(level)), 
-               point_interval = mode_hdci, 
+               point_interval = median_hdci, 
                .width = c(.66, .90, .95)) + 
   scale_fill_ramp_discrete(na.translate=FALSE, 
-                           labels =c("0.95","0.90","0.66"), 
+                           labels =c("0.95","0.89","0.66"), 
                            name = "Credible interval") +
   scale_fill_manual(values = c("lightskyblue" ,"dodgerblue2", "dodgerblue4","coral", "red2","firebrick4"))+ 
   #scale_y_continuous(limits=c(-6,6), breaks = seq(-6,6, 1))+

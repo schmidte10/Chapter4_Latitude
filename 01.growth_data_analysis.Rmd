@@ -37,7 +37,8 @@ library(ggdist) # partial plots
 library(tidybayes) # partial plots 
 library(broom.mixed) # model investigation
 library(emmeans) # pairwise comparisons
-library(rstanarm) # pairwise comparisons - need for emmeans
+library(rstanarm) # pairwise comparisons - need for emmeans 
+library(modelsummary) # descriptive statistics
 ```
 
 # Set working directory 
@@ -281,7 +282,15 @@ growth3 <- growth2 |>
          DENSITY > 3)  
 ```
 
-
+# Descriptive statistics 
+```{r descriptive-statistics}
+MinMax <- function(x) paste0('[', min(x, na.rm = TRUE), ', ', max(x, na.rm = TRUE), ']') 
+Range <- function(x) max(x, na.rm = TRUE) - min(x, na.rm = TRUE)
+datasummary(REGION *(LENGTH + MASS) + (LENGTH + MASS) ~  mean + MinMax + Range + Histogram, 
+            data=growth3)
+datasummary(REGION * DEV_TEMP * (LENGTH + MASS) + (LENGTH + MASS) ~  median + MinMax + Range + Histogram, 
+            data=growth3)
+```
 
 note this also removes NA's therefore the difference in data frames is 21 row: 
 
@@ -811,12 +820,18 @@ model1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGI
 mtsqst <- model1 |> emmeans(pairwise ~ REGION*DEV_TEMP)
 mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
 mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
+
+
+summary(model1)
+
+
 ```
 ## {-}
 
 # summary figure 
 
 ```{r summary-figure-1}
+
 var <- get_variables(model1)
 var1 <- get_variables(model1)[c(1:4,8:9)] 
 
@@ -846,7 +861,7 @@ int_draws <- int_draws_spread2 |>
 int_draws_plotting <- int_draws |> 
   pivot_longer(cols = starts_with("x"), 
                names_to = "DEV_TEMP", 
-               values_to = "LENGTH") |> 
+               values_to = "LENGTH") 
   transmute(LATITUDE = case_when(`.variable` == "b_Intercept" ~ "Low latitude", 
                                  `.variable` == "b_REGIONleading" ~ "High latitude"), 
             DEV_TEMP = case_when(DEV_TEMP == 'x28.5' ~ 'DEV_TEMP_28.5', 
@@ -868,7 +883,7 @@ length.plot <- int_draws_plotting |>
   ggplot(aes(x=EXP_GROUP, y=LENGTH)) + 
   geom_hline(yintercept = 31.32, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
   stat_halfeye(aes(fill = EXP_GROUP, fill_ramp = after_stat(level)), 
-               point_interval = mode_hdci, 
+               point_interval = median_hdci, 
                .width = c(.66, .90, .95)) + 
   scale_fill_ramp_discrete(na.translate=FALSE, 
                            labels =c("0.95","0.90","0.66"), 
@@ -890,6 +905,7 @@ length.plot <- int_draws_plotting |>
         axis.title.y = element_text(margin = margin(r =0.3, unit = "in"), size = 12), 
         axis.title.x = element_text(margin = margin(t = 0.3, unit="in"), size =12), 
         legend.key = element_rect(color="black", size=1.25)); length.plot
+
 ```
 
 ```{r eval=FALSE, echo=TRUE}
@@ -897,4 +913,12 @@ ggsave(file="./figures/length.plot.svg",  plot=length.plot, width=8, height=5, u
 ggsave(file="./figures/length.plot.pdf",  plot=length.plot, width=8, height=5, units = "in", dpi=300)
 ```
 
-
+```{r}
+int_draws_spread %>%
+  pivot_longer(everything(), names_to = 'var', values_to = 'value') %>%
+  dplyr::filter(!var %in% c('.chain', '.draw', '.iteration')) %>%
+  ggplot(aes(x = value)) +
+  geom_density() +
+  facet_wrap(~ var, ncol = 1, scales = 'free_y') + 
+  geom_vline(xintercept=0, color="red")
+```

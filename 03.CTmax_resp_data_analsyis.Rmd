@@ -41,7 +41,8 @@ library(rstanarm) # pairwise comparisons - need for emmeans
 library(ggpubr) # arranging figures 
 library(mgcv) # GAM 
 library(modelr) # plotting
-library(segmented)
+library(segmented) # piece wise regression 
+library(strucchange) #piece wise regression
 ```
 
 # Set working directory 
@@ -265,6 +266,8 @@ lat_resp_dat2 |>
 
 ## Priors 
 ```{r prior-investigation-random-factors}
+rate.priors2 <- prior(normal(0.635, 0.20), class="Intercept") +
+  prior(student_t(3, 0, 0.45), class = "sigma")
 rate.priors <- prior(normal(430, 0.25), class="Intercept") +  
   prior(student_t(3, 0, 195), class = "sigma")
 ```
@@ -273,12 +276,12 @@ rate.priors <- prior(normal(430, 0.25), class="Intercept") +
 
 ### Null 
 ```{r null, cache=TRUE}
-f.model.null <- bf(rate.output ~ 1, 
+f.model.null <- bf(rate.output2 ~ 1, 
                    family = gaussian()) 
 
 model.null <- brm(f.model.null,
               data = lat_resp_dat2, 
-              prior = rate.priors,
+              prior = rate.priors2,
               warmup = 500, 
               iter = 5000,
               seed=123, 
@@ -294,12 +297,12 @@ saveRDS(model.null, file="./03.CTmax_resp_data_analsyis_files/model.null.RDS")
 
 ### Model1
 ```{r fit-model1, cache=TRUE} 
-f.model1 <- bf(rate.output ~ 1 + (1| female) + (1| tank), 
+f.model1 <- bf(rate.output2 ~ 1 + (1| female) + (1| tank), 
                           family=gaussian())
 
 model1 <- brm(f.model1,
               data = lat_resp_dat2, 
-              prior = rate.priors,
+              prior = rate.priors2,
               warmup = 500, 
               iter = 5000,
               seed=123, 
@@ -314,12 +317,12 @@ saveRDS(model1, file="./03.CTmax_resp_data_analsyis_files/model1.RDS")
 
 ### Model2
 ```{r fit-model2, cache=TRUE} 
-f.model2 <- bf(rate.output ~ 1 + (1| female) + (1| tank) + (1| level), 
+f.model2 <- bf(rate.output2 ~ 1 + (1| female) + (1| tank) + (1| level), 
                           family=gaussian())
 
 model2 <- brm(f.model2,
               data = lat_resp_dat2, 
-              prior = rate.priors,
+              prior = rate.priors2,
               warmup = 500, 
               iter = 5000,
               seed=123, 
@@ -334,12 +337,12 @@ saveRDS(model2, file="./03.CTmax_resp_data_analsyis_files/model2.RDS")
 
 ### Model3
 ```{r fit-model3, cache=TRUE}  
-f.model3 <- bf(rate.output ~ 1 + (1| female) + (1| tank) + (1| level) + (1| population), 
+f.model3 <- bf(rate.output2 ~ 1 + (1| female) + (1| tank) + (1| level) + (1| population), 
                family=gaussian())
 
 model3 <- brm(f.model3,
               data = lat_resp_dat2, 
-              prior = rate.priors,
+              prior = rate.priors2,
               warmup = 500, 
               iter = 5000,
               seed=123, 
@@ -354,12 +357,12 @@ saveRDS(model3, file="./03.CTmax_resp_data_analsyis_files/model3.RDS")
 
 ### Model4
 ```{r fit-model4, cache=TRUE} 
-f.model4 <- bf(rate.output ~ 1 + (1| female) + (1 | tank) + (1| level) + (1| population)+ (1| clutch_order), 
+f.model4 <- bf(rate.output2 ~ 1 + (1| female) + (1 | tank) + (1| level) + (1| population)+ (1| clutch_order), 
                         family=gaussian())
 
 model4 <- brm(f.model4,
               data = lat_resp_dat2, 
-              prior = rate.priors,
+              prior = rate.priors2,
               warmup = 500, 
               iter = 5000,
               seed=123, 
@@ -387,14 +390,23 @@ LOO(model.null,model1, model2,model3,model4)
 ```{r }
 lat_resp_dat2 |> 
   group_by(region,dev.temp) |> 
+  summarise(mean(na.omit(rate.output2)), 
+            sd(na.omit(rate.output2))) ; lat_resp_dat2 |> 
+  group_by(region,dev.temp) |> 
   summarise(mean(na.omit(rate.output)), 
             sd(na.omit(rate.output))) 
 ```
 
 ## Priors
 ```{r }
-rate.priors <- prior(normal(430, 0.25), class="Intercept") + 
-  prior(normal(0, 40), class="b")
+
+# change to reflect rate.output2
+rate.priors2 <- prior(normal(0.635, 0.20), class="Intercept") + 
+  prior(normal(0, 0.20), class="b") +
+  prior(student_t(3, 0, 0.45), class = "sigma")
+  
+  rate.priors <- prior(normal(430, 0.25), class="Intercept") + 
+  prior(normal(0, 40), class="b") +
   prior(student_t(3, 0, 195), class = "sigma")
 ```
 
@@ -405,7 +417,7 @@ rate.priors <- prior(normal(430, 0.25), class="Intercept") +
 #### Model1.p1
 
 ```{r model1.p1, cache=TRUE}
-f.model1.p1 <- bf(rate.output ~ 1 + 
+f.model1.p1 <- bf(rate.output2 ~ 1 + 
                          dev.temp*region + Temperature +
                          scale(mass, center=TRUE, scale=TRUE) + 
                          (1| female) + (1| tank) , 
@@ -413,7 +425,7 @@ f.model1.p1 <- bf(rate.output ~ 1 +
 
 model1.p1 <- brm(f.model1.p1,
               data = lat_resp_dat2, 
-              prior = rate.priors,
+              prior = rate.priors2,
               warmup = 500, 
               iter = 5000,
               seed=123, 
@@ -456,7 +468,7 @@ stan_dens(model1.p1$fit, separate_chains = TRUE)
 #### model1.p2
 
 ```{r model1.p2, cache=TRUE}
-f.model1.p2 <- bf(rate.output ~ 1 + 
+f.model1.p2 <- bf(rate.output2 ~ 1 + 
                          dev.temp*region + poly(Temperature, 2) +
                          scale(mass, center=TRUE, scale=TRUE) + 
                          (1| female) + (1| tank) , 
@@ -464,7 +476,7 @@ f.model1.p2 <- bf(rate.output ~ 1 +
 
 model1.p2 <- brm(f.model1.p2,
               data = lat_resp_dat2, 
-              prior = rate.priors,
+              prior = rate.priors2,
               warmup = 500, 
               iter = 5000,
               seed=123, 
@@ -507,7 +519,7 @@ stan_dens(model1.p2$fit, separate_chains = TRUE)
 #### model1.p3
 
 ```{r model1.p3, cache=TRUE}
-f.model1.p3 <- bf(rate.output ~ 1 + 
+f.model1.p3 <- bf(rate.output2 ~ 1 + 
                          dev.temp*region + poly(Temperature, 3) +
                          scale(mass, center=TRUE, scale=TRUE) + 
                          (1| female) + (1| tank) , 
@@ -515,7 +527,7 @@ f.model1.p3 <- bf(rate.output ~ 1 +
 
 model1.p3 <- brm(f.model1.p3,
               data = lat_resp_dat2, 
-              prior = rate.priors,
+              prior = rate.priors2,
               warmup = 500, 
               iter = 5000,
               seed=123, 
@@ -566,7 +578,7 @@ LOO(model1.p1, model1.p2,model1.p3)
 ### GAM model k=4
 ```{r GAMK4, cache=TRUE} 
 
-f.model1.gamk4 <- bf(rate.output ~ 1 + 
+f.model1.gamk4 <- bf(rate.output2 ~ 1 + 
                          t2(dev.temp,region,Temperature, k=4, bs="fs", by=dev.temp.region) + 
                          scale(mass, center=TRUE, scale=TRUE) + 
                          (1| female) + (1| tank), 
@@ -574,7 +586,7 @@ f.model1.gamk4 <- bf(rate.output ~ 1 +
 
 model1.gamk4 <- brm(f.model1.gamk4,
               data = lat_resp_dat2, 
-              prior = rate.priors,
+              prior = rate.priors2,
               warmup = 500, 
               iter = 5000,
               seed=123, 
@@ -614,7 +626,7 @@ stan_dens(model1.gamk4$fit, separate_chains = TRUE)
 ## GAM model k=3 {.tabset}  
 ### GAM model k=3
 ```{r GAMK3, cache=TRUE}
-f.model1.gamk3 <- bf(rate.output ~ 1 + 
+f.model1.gamk3 <- bf(rate.output2 ~ 1 + 
                          t2(dev.temp,region,Temperature, k=3, bs="fs", by=dev.temp.region) + 
                          scale(mass, center=TRUE, scale=TRUE) + 
                          (1| female) + (1| tank), 
@@ -622,7 +634,7 @@ f.model1.gamk3 <- bf(rate.output ~ 1 +
 
 model1.gamk3 <- brm(f.model1.gamk3,
               data = lat_resp_dat2, 
-              prior = rate.priors,
+              prior = rate.priors2,
               warmup = 500, 
               iter = 5000,
               seed=123, 
@@ -718,10 +730,9 @@ model1.gamk4 |> emmeans(pairwise ~ region*dev.temp, type="response") |> pairs(by
 
 model1.gamk4 |> emmeans(pairwise ~ region*dev.temp, type="response") |> regrid() 
 
-model1.gamk4 |> emmeans(pairwise ~ region*dev.temp, type="response") |> pairs(by="region") |> confint()
 ```
 
-## emtrenns - pariwise 
+## emtrends - pariwise 
 
 ```{r emtrends-pairwise}
 emtrends(model1.gamk4, specs=pairwise~dev.temp*region, var = "Temperature")  
@@ -733,6 +744,25 @@ emtrends(model1.gamk4, specs=pairwise~dev.temp*region, var = "Temperature")
 mtsqst <- model1.gamk4 |> emmeans(pairwise ~ region*dev.temp)
 mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
 mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
+```
+
+## values 
+```{r values}
+values.df <- lat_resp_dat2 |> 
+  group_by(region, dev.temp,dev.temp.region) |> 
+  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+                          to=max(lat_resp_dat2$Temperature), 
+                          length.out=100), 
+            mass=0.00148299) |> 
+  add_fitted_draws(model1.gamk4, 
+                   n=300, 
+                   re_formula=NA) |> 
+  filter(Temperature < 34) |> 
+  group_by(dev.temp.region) |> 
+  summarise(oxygen_uptake_values = median(.value)) |>
+  ungroup() |> 
+  separate(dev.temp.region, c("temperature","region"), remove=FALSE); values.df
+
 ```
 
 # summary figure 
@@ -791,165 +821,671 @@ resp.plot3 <- lat_resp_dat2 |>
   theme_classic(); resp.plot3
 ```
 
-# Line segment analysis 
-```{r line-segment-analysis}
-summary(model1.gamk4)
+# Pre-inflection point {.tabset}
 
-model1.gamk4 |> conditional_smooths(smooths = 't2(dev.temp,region,Temperature,k=4,bs="fs",by=dev.temp.region)')
-
-smooths <- posterior_predict(model1.gamk4, newdata = lat_resp_dat2, nsamples = 1000) 
-first_derivative <- diff(smooths, difference =1)
-second_derivative <- diff(smooths, difference =2)
-inflection_points <- apply(sign(second_derivative), 2, function(x) which(diff(x) != 0)) 
-inflection_points
-
-newdata <- expand.grid(region = lat_resp_dat2$region,
-                       dev.temp = lat_resp_dat2$dev.temp,
-                       Temperature = seq(min(lat_resp_dat2$Temperature), max(lat_resp_dat2$Temperature), length.out = 10),
-                       group = levels(lat_resp_dat2$dev.temp.region)) 
-
+## create data frame
+Split posterior of draws from main model into data prior to 33.5 C (earliest inflection point)
+```{r pre_infl_1}
+pre_infl <- lat_resp_dat2 |> 
+  filter(t < 33.5) 
 ```
 
-### piecewise linear regression 
-```{r}
-delete <- lat_resp_dat2 |> 
+## priors
+```{r pre_infl priors}
+pre_infl |> 
+  group_by(dev.temp.region) |> 
+  summarise(mean(na.omit(rate.output2)), 
+            sd(na.omit(rate.output2)))
+```
+
+```{r pre_infl priors2}
+pre.priors <- prior(normal(0.57, 0.2), class="Intercept") + 
+  prior(normal(0, 0.25), class="b") +
+  prior(student_t(3, 0, 0.40), class = "sigma")
+```
+
+## linear model 
+```{r cache=TRUE}
+f.pre.model1 <- bf(rate.output2 ~ 1 + 
+                         dev.temp*region*Temperature + 
+                         scale(mass, center=TRUE, scale=TRUE) + 
+                         (1| female) + (1| tank), 
+                         family=gaussian()) 
+
+pre.model1 <- brm(f.pre.model1,
+              data = pre_infl, 
+              prior = pre.priors,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE), 
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+saveRDS(pre.model1, file="./03.CTmax_resp_data_analsyis_files/pre.model1.RDS")
+```
+
+## Model investigation {.tabset}
+
+```{r pre-partial-plots-cond-eff-1}
+pre.model1 |> 
+  conditional_effects(spaghetti = TRUE, ndraws=200) 
+``` 
+
+### summary 
+
+```{r pre-summary-100}
+summary(pre.model1)
+#car::Anova(model1.geo.gamma)
+```
+
+### R2 
+
+```{r pre-r-squared}
+pre.model1 |> bayes_R2(summary = FALSE) |> median_hdci()
+```
+
+### tidyMCMC 
+
+```{r pre-tidy}
+tidyMCMC(pre.model1, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+```
+
+### gather draws 
+
+```{r pre-gather_draws}
+#model1.re.wo |> get_variables()
+pre.model1 |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+  median_hdci()
+``` 
+
+### bayesplot 
+
+```{r pre-bayesplot-1}
+pre.model1 |> mcmc_plot(type='intervals')
+```
+
+### emmeans - pariwise 
+
+```{r pre-emmeans-pairwise}
+pre.model1 |> emmeans(pairwise ~ region*dev.temp, type="response") |> pairs(by="dev.temp") |> summary(infer=TRUE)
+
+pre.model1 |> emmeans(pairwise ~ region*dev.temp, type="response") |> pairs(by="region") |> confint()
+
+pre.model1 |> emmeans(pairwise ~ region*dev.temp, type="response") |> regrid() 
+
+```
+### probabilities 
+```{r pre-probabilities}
+mtsqst <- pre.model1 |> emmeans(pairwise ~ region*dev.temp)
+mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
+mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
+```
+
+## {-} 
+
+## Summary plots
+```{r pre-summary-figure-1, warning=FALSE, message=FALSE}
+resp.plot <- lat_resp_dat2 |> 
   group_by(region, dev.temp,dev.temp.region) |> 
   data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
-                          to=max(lat_resp_dat2$Temperature), 
+                          to=33.5, 
                           length.out=100), 
             mass=0.00148299) |> 
-  add_fitted_draws(model1.gamk4, 
-                   n=300, 
+  add_fitted_draws(pre.model1, 
+                   n=500, 
                    re_formula=NA) |>  
   unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
-  filter(dev.temp.region == "28_leading")  
-
-spline_fit <- smooth.spline(delete$Temperature, delete$.value, nknots = 4)
-
-ggplot(delete, aes(x=Temperature, y=.value)) + 
-  geom_point(color="black", alpha=0.05, size=1) + 
-  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
-                                        color="red"), 
-              size=2) 
-
- 
-
-my.lm <- lm(data=data, y ~ x) 
-my.seg <- segmented(my.lm, 
-                    seg.Z = ~x, 
-                    psi=list(x=c(31,36)))
-summary(my.seg) 
-
-my.seg$psi 
-slope(my.seg)
-
-my.fitted <- fitted(my.seg)
-my.model <- data.frame(temperature = data$x, rate.output= my.fitted)
-
-ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
-
-ggplot(delete, aes(x=Temperature, y=.value)) + 
-  geom_point(color="black", alpha=0.05, size=1) + 
-  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
-                                        color="red"), 
-              size=2) + 
-  geom_vline(xintercept = 34.34)
+  ggplot(aes(x=Temperature, color=exp_group)) + 
+  geom_line(aes(y=.value, group=paste(exp_group, .draw)), alpha=0.05) + 
+  geom_smooth(aes(y=.value, color=exp_group), se=FALSE, size=1.5) + 
+  theme_classic(); resp.plot
 ```
-### piecewise linear regression 
-```{r}
-delete <- lat_resp_dat2 |> 
+
+# {-} 
+
+# Post-inflection point analysis {.tabset}
+
+```{r post_infl_1}
+post_infl <- lat_resp_dat2 |> 
+  filter(t >34.6) 
+```
+
+## priors
+```{r post_infl priors}
+post_infl |> 
+  group_by(dev.temp.region) |> 
+  summarise(mean(na.omit(rate.output2)), 
+            sd(na.omit(rate.output2)))
+```
+
+```{r post_infl priors2}
+post.priors <- prior(normal(0.78, 0.20), class="Intercept") + 
+  prior(normal(0, 0.20), class="b") +
+  prior(student_t(3, 0, 0.47), class = "sigma")
+```
+
+## model
+
+```{r cache=TRUE}
+f.post.model1 <- bf(rate.output2 ~ 1 + 
+                         dev.temp*region*Temperature + 
+                         scale(mass, center=TRUE, scale=TRUE) + 
+                         (1| female) + (1| tank), 
+                         family=gaussian()) 
+
+post.model1 <- brm(f.post.model1,
+              data = post_infl, 
+              prior = post.priors,
+              warmup = 500, 
+              iter = 5000,
+              seed=123, 
+              cores=2, 
+              save_pars = save_pars(all=TRUE), 
+              sample_prior = "yes",
+              chains = 2, 
+              thin = 5, 
+              control = list(adapt_delta=0.95)) 
+saveRDS(post.model1, file="./03.CTmax_resp_data_analsyis_files/post.model1.RDS")
+```
+
+## Model investigation {.tabset}
+
+```{r post-partial-plots-cond-eff-1}
+post.model1 |> 
+  conditional_effects(spaghetti = TRUE, ndraws=200) 
+``` 
+
+### summary 
+
+```{r post-summary-100}
+summary(post.model1)
+#car::Anova(model1.geo.gamma)
+```
+
+### R2 
+
+```{r post-r-squared}
+post.model1 |> bayes_R2(summary = FALSE) |> median_hdci()
+```
+
+### tidyMCMC 
+
+```{r post-tidy}
+tidyMCMC(post.model1, estimate.method='median', conf.int=TRUE, conf.method='HPDinterval')
+```
+
+### gather draws 
+
+```{r post-gather_draws}
+#model1.re.wo |> get_variables()
+post.model1 |> gather_draws(`b_.*|sigma`, regex =TRUE) |> 
+  median_hdci()
+``` 
+
+### bayesplot 
+
+```{r post-bayesplot-1}
+post.model1 |> mcmc_plot(type='intervals')
+```
+
+### emmeans - pariwise 
+
+```{r post-emmeans-pairwise}
+emtrends(post.model1, specs=pairwise~dev.temp*region, var = "Temperature")   
+```
+### probabilities 
+```{r post-probabilities}
+mtsqst <- post.model1 |> emmeans(pairwise ~ region*dev.temp)
+mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
+mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
+```
+
+## {-}
+
+## Summary plots
+```{r post-summary-figure-1, warning=FALSE, message=FALSE}
+resp.plot <- lat_resp_dat2 |> 
   group_by(region, dev.temp,dev.temp.region) |> 
-  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+  data_grid(Temperature=seq(from=34.6, 
                           to=max(lat_resp_dat2$Temperature), 
                           length.out=100), 
             mass=0.00148299) |> 
-  add_fitted_draws(model1.gamk4, 
-                   n=300, 
+  add_fitted_draws(post.model1, 
+                   n=500, 
                    re_formula=NA) |>  
   unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
-  filter(dev.temp.region == "31_core")  
-
-spline_fit <- smooth.spline(delete$Temperature, delete$.value, nknots = 4) 
-
-ggplot(delete, aes(x=Temperature, y=.value)) + 
-  geom_point(color="black", alpha=0.05, size=1) + 
-  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
-                                        color="red"), 
-              size=2) 
-
-data <- as.data.frame(x= spline_fit$x) |> 
-  mutate(y = spline_fit$y)|> 
-  rename(x = `spline_fit$x`)
-
-
-my.lm <- lm(data=data, y ~ x) 
-my.seg <- segmented(my.lm, 
-                    seg.Z = ~x, 
-                    psi=list(x=c(31,36.5)))
-summary(my.seg) 
-
-my.seg$psi 
-slope(my.seg)
-
-my.fitted <- fitted(my.seg)
-my.model <- data.frame(temperature = data$x, rate.output= my.fitted)
-
-ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
-
-ggplot(delete, aes(x=Temperature, y=.value)) + 
-  geom_point(color="black", alpha=0.05, size=1) + 
-  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
-                                        color="red"), 
-              size=2) + 
-  geom_vline(xintercept = my.seg$psi[1,2]); ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+  ggplot(aes(x=Temperature, color=exp_group)) + 
+  geom_line(aes(y=.value, group=paste(exp_group, .draw)), alpha=0.05) + 
+  geom_smooth(aes(y=.value, color=exp_group), se=FALSE, size=1.5) + 
+  theme_classic(); resp.plot
 ```
 
+# {-}
 
-### piecewise linear regression 
-```{r}
-delete2 <- lat_resp_dat2 |> 
+# Piecewise linear regression {.tabset}
+
+## Low-latitude - 28.5C
+```{r warning=FALSE}
+posterior_draws <- lat_resp_dat2 |> 
   group_by(region, dev.temp,dev.temp.region) |> 
   data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
                           to=max(lat_resp_dat2$Temperature), 
                           length.out=100), 
             mass=0.00148299) |> 
-  add_fitted_draws(model1.gamk4, 
+  add_linpred_draws(model1.gamk4, 
                    n=300, 
                    re_formula=NA) |>  
   unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
   filter(dev.temp.region == "28_core")  
 
-spline_fit <- smooth.spline(delete$Temperature, delete$.value, nknots = 4) 
+spline_fit <- smooth.spline(posterior_draws$Temperature, posterior_draws$.linpred, nknots = 4) 
 
-ggplot(delete, aes(x=Temperature, y=.value)) + 
+ggplot(posterior_draws, aes(x=Temperature, y=.linpred)) + 
   geom_point(color="black", alpha=0.05, size=1) + 
   geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
                                         color="red"), 
               size=2) 
+```
 
-data <- as.data.frame(x= spline_fit$x) |> 
+### strucchange analysis 
+```{r}
+spline.data <- as.data.frame(x= spline_fit$x) |> 
   mutate(y = spline_fit$y)|> 
   rename(x = `spline_fit$x`)
 
+plot(spline.data)
+fs.data <- Fstats(spline.data$y~1) 
+bp.data <- breakpoints(spline.data$y~1)
+summary(bp.data) 
+plot(bp.data) 
+breakpoint.values=c(54,70,85); spline.data[breakpoint.values, c("x")] 
+```
 
-my.lm <- lm(data=data, y ~ x) 
+### segement analysis 
+
+Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
+```{r}
+my.lm <- lm(data=spline.data, y ~ x) 
+
+spline.data[breakpoint.values, c("x")]
+
 my.seg <- segmented(my.lm, 
                     seg.Z = ~x, 
-                    psi=list(x=c(31,36.5)))
-summary(my.seg) 
+                    psi=list(x=spline.data[breakpoint.values, c("x")]))
+#summary(my.seg) 
 
-my.seg$psi 
-slope(my.seg)
+my.seg$psi ; slope(my.seg)
 
 my.fitted <- fitted(my.seg)
-my.model <- data.frame(temperature = data$x, rate.output= my.fitted)
+my.model <- data.frame(temperature = spline.data$x, rate.output= my.fitted)
 
 ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
 
-ggplot(delete, aes(x=Temperature, y=.value)) + 
+ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
+  geom_point(alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="red", 
+              size=3) + ylab("rate.output")+
+  geom_vline(xintercept = my.seg$psi[1,2]) + 
+   geom_vline(xintercept = my.seg$psi[2,2])+ 
+  geom_vline(xintercept = my.seg$psi[3,2])+ 
+   geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+  geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) +
+  theme_classic()
+```
+
+## Low-latitude - 30C
+```{r warning=FALSE}
+posterior_draws <- lat_resp_dat2 |> 
+  group_by(region, dev.temp,dev.temp.region) |> 
+  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+                          to=max(lat_resp_dat2$Temperature), 
+                          length.out=100), 
+            mass=0.00148299) |> 
+  add_linpred_draws(model1.gamk4, 
+                   n=300, 
+                   re_formula=NA) |>  
+  unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
+  filter(dev.temp.region == "30_core")  
+
+spline_fit <- smooth.spline(posterior_draws$Temperature, posterior_draws$.linpred, nknots = 4) 
+
+ggplot(posterior_draws, aes(x=Temperature, y=.linpred)) + 
   geom_point(color="black", alpha=0.05, size=1) + 
   geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
                                         color="red"), 
-              size=2) + 
-  geom_vline(xintercept = my.seg$psi[1,2]); ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+              size=2) 
 ```
+
+### strucchange analysis 
+```{r}
+spline.data <- as.data.frame(x= spline_fit$x) |> 
+  mutate(y = spline_fit$y)|> 
+  rename(x = `spline_fit$x`)
+plot(spline.data)
+fs.data <- Fstats(spline.data$y~1) 
+bp.data <- breakpoints(spline.data$y~1)
+summary(bp.data) 
+plot(bp.data) 
+breakpoint.values=c(54,70,85); spline.data[breakpoint.values, c("x")] 
+```
+
+### segement analysis 
+
+Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
+```{r}
+my.lm <- lm(data=spline.data, y ~ x) 
+
+spline.data[breakpoint.values, c("x")]
+
+my.seg <- segmented(my.lm, 
+                    seg.Z = ~x, 
+                    psi=list(x=spline.data[breakpoint.values, c("x")]))
+#summary(my.seg) 
+
+my.seg$psi ; slope(my.seg)
+
+my.fitted <- fitted(my.seg)
+my.model <- data.frame(temperature = spline.data$x, rate.output= my.fitted)
+
+ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+
+ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
+  geom_point(alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="red", 
+              size=3) + ylab("rate.output")+
+  geom_vline(xintercept = my.seg$psi[1,2]) + 
+   geom_vline(xintercept = my.seg$psi[2,2])+ 
+  geom_vline(xintercept = my.seg$psi[3,2])+ 
+   geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+  geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) +
+  theme_classic() 
+```
+
+## Low-latitude - 31C
+```{r warning=FALSE}
+posterior_draws <- lat_resp_dat2 |> 
+  group_by(region, dev.temp,dev.temp.region) |> 
+  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+                          to=max(lat_resp_dat2$Temperature), 
+                          length.out=100), 
+            mass=0.00148299) |> 
+  add_linpred_draws(model1.gamk4, 
+                   n=300, 
+                   re_formula=NA) |>  
+  unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
+  filter(dev.temp.region == "31_core")  
+
+spline_fit <- smooth.spline(posterior_draws$Temperature, posterior_draws$.linpred, nknots = 4) 
+
+ggplot(posterior_draws, aes(x=Temperature, y=.linpred)) + 
+  geom_point(color="black", alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
+                                        color="red"), 
+              size=2) 
+```
+
+### strucchange analysis 
+```{r}
+spline.data <- as.data.frame(x= spline_fit$x) |> 
+  mutate(y = spline_fit$y)|> 
+  rename(x = `spline_fit$x`)
+plot(spline.data)
+fs.data <- Fstats(spline.data$y~1) 
+bp.data <- breakpoints(spline.data$y~1)
+summary(bp.data) 
+plot(bp.data) 
+breakpoint.values=c(55,70,85); spline.data[breakpoint.values, c("x")] 
+```
+
+### segement analysis 
+
+Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
+```{r}
+my.lm <- lm(data=spline.data, y ~ x) 
+
+spline.data[breakpoint.values, c("x")]
+
+my.seg <- segmented(my.lm, 
+                    seg.Z = ~x, 
+                    psi=list(x=spline.data[breakpoint.values, c("x")]))
+#summary(my.seg) 
+
+my.seg$psi ; slope(my.seg)
+
+my.fitted <- fitted(my.seg)
+my.model <- data.frame(temperature = spline.data$x, rate.output= my.fitted)
+
+ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+
+ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
+  geom_point(alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="red", 
+              size=3) + ylab("rate.output")+
+  geom_vline(xintercept = my.seg$psi[1,2]) + 
+   geom_vline(xintercept = my.seg$psi[2,2])+ 
+  geom_vline(xintercept = my.seg$psi[3,2])+ 
+   geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+  geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) +
+  theme_classic()
+```
+
+## High-latitude - 28C
+```{r warning=FALSE}
+posterior_draws <- lat_resp_dat2 |> 
+  group_by(region, dev.temp,dev.temp.region) |> 
+  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+                          to=max(lat_resp_dat2$Temperature), 
+                          length.out=100), 
+            mass=0.00148299) |> 
+  add_linpred_draws(model1.gamk4, 
+                   n=300, 
+                   re_formula=NA) |>  
+  unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
+  filter(dev.temp.region == "28_leading")  
+
+spline_fit <- smooth.spline(posterior_draws$Temperature, posterior_draws$.linpred, nknots = 4) 
+
+ggplot(posterior_draws, aes(x=Temperature, y=.linpred)) + 
+  geom_point(color="black", alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
+                                        color="red"), 
+              size=2) 
+```
+
+### strucchange analysis 
+```{r}
+spline.data <- as.data.frame(x= spline_fit$x) |> 
+  mutate(y = spline_fit$y)|> 
+  rename(x = `spline_fit$x`)
+plot(spline.data)
+fs.data <- Fstats(spline.data$y~1) 
+bp.data <- breakpoints(spline.data$y~1)
+summary(bp.data) 
+plot(bp.data) 
+breakpoint.values=c(55,70,85); spline.data[breakpoint.values, c("x")] 
+```
+
+### segement analysis 
+
+Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
+```{r}
+my.lm <- lm(data=spline.data, y ~ x) 
+
+spline.data[breakpoint.values, c("x")]
+
+my.seg <- segmented(my.lm, 
+                    seg.Z = ~x, 
+                    psi=list(x=spline.data[breakpoint.values, c("x")]))
+#summary(my.seg) 
+
+my.seg$psi ; slope(my.seg)
+
+my.fitted <- fitted(my.seg)
+my.model <- data.frame(temperature = spline.data$x, rate.output= my.fitted)
+
+ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+
+ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
+  geom_point(alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="red", 
+              size=3) + ylab("rate.output")+
+  geom_vline(xintercept = my.seg$psi[1,2]) + 
+   geom_vline(xintercept = my.seg$psi[2,2])+ 
+  geom_vline(xintercept = my.seg$psi[3,2])+ 
+   geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+  geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) +
+  theme_classic()
+```
+
+## High-latitude - 30C
+```{r warning=FALSE}
+posterior_draws <- lat_resp_dat2 |> 
+  group_by(region, dev.temp,dev.temp.region) |> 
+  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+                          to=max(lat_resp_dat2$Temperature), 
+                          length.out=100), 
+            mass=0.00148299) |> 
+  add_linpred_draws(model1.gamk4, 
+                   n=300, 
+                   re_formula=NA) |>  
+  unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
+  filter(dev.temp.region == "30_leading")  
+
+spline_fit <- smooth.spline(posterior_draws$Temperature, posterior_draws$.linpred, nknots = 4) 
+
+ggplot(posterior_draws, aes(x=Temperature, y=.linpred)) + 
+  geom_point(color="black", alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
+                                        color="red"), 
+              size=2) 
+```
+
+### strucchange analysis 
+```{r}
+spline.data <- as.data.frame(x= spline_fit$x) |> 
+  mutate(y = spline_fit$y)|> 
+  rename(x = `spline_fit$x`)
+plot(spline.data)
+fs.data <- Fstats(spline.data$y~1) 
+bp.data <- breakpoints(spline.data$y~1)
+summary(bp.data) 
+plot(bp.data) 
+breakpoint.values=c(55,70,85); spline.data[breakpoint.values, c("x")] 
+```
+
+### segement analysis 
+
+Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
+```{r}
+my.lm <- lm(data=spline.data, y ~ x) 
+
+spline.data[breakpoint.values, c("x")]
+
+my.seg <- segmented(my.lm, 
+                    seg.Z = ~x, 
+                    psi=list(x=spline.data[breakpoint.values, c("x")]))
+#summary(my.seg) 
+
+my.seg$psi ; slope(my.seg)
+
+my.fitted <- fitted(my.seg)
+my.model <- data.frame(temperature = spline.data$x, rate.output= my.fitted)
+
+ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+
+ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
+  geom_point(alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="red", 
+              size=3) + ylab("rate.output")+
+  geom_vline(xintercept = my.seg$psi[1,2]) + 
+   geom_vline(xintercept = my.seg$psi[2,2])+ 
+  geom_vline(xintercept = my.seg$psi[3,2])+ 
+   geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+  geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) +
+  theme_classic()
+```
+
+## High-latitude - 31C
+```{r warning=FALSE}
+posterior_draws <- lat_resp_dat2 |> 
+  group_by(region, dev.temp,dev.temp.region) |> 
+  data_grid(Temperature=seq(from=min(lat_resp_dat2$Temperature), 
+                          to=max(lat_resp_dat2$Temperature), 
+                          length.out=100), 
+            mass=0.00148299) |> 
+  add_linpred_draws(model1.gamk4, 
+                   n=300, 
+                   re_formula=NA) |>  
+  unite("exp_group", c("region","dev.temp"), remove=FALSE) |> 
+  filter(dev.temp.region == "31_leading")  
+
+spline_fit <- smooth.spline(posterior_draws$Temperature, posterior_draws$.linpred, nknots = 4) 
+
+ggplot(posterior_draws, aes(x=Temperature, y=.linpred)) + 
+  geom_point(color="black", alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
+                                        color="red"), 
+              size=2) 
+```
+
+### strucchange analysis 
+```{r}
+spline.data <- as.data.frame(x= spline_fit$x) |> 
+  mutate(y = spline_fit$y)|> 
+  rename(x = `spline_fit$x`)
+plot(spline.data)
+fs.data <- Fstats(spline.data$y~1) 
+bp.data <- breakpoints(spline.data$y~1)
+summary(bp.data) 
+plot(bp.data) 
+breakpoint.values=c(55,70,85); spline.data[breakpoint.values, c("x")] 
+```
+
+### segement analysis 
+
+Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
+```{r}
+my.lm <- lm(data=spline.data, y ~ x) 
+
+spline.data[breakpoint.values, c("x")]
+
+my.seg <- segmented(my.lm, 
+                    seg.Z = ~x, 
+                    psi=list(x=spline.data[breakpoint.values, c("x")]))
+#summary(my.seg) 
+
+my.seg$psi ; slope(my.seg)
+
+my.fitted <- fitted(my.seg)
+my.model <- data.frame(temperature = spline.data$x, rate.output= my.fitted)
+
+ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+
+ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
+  geom_point(alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="red", 
+              size=3) + ylab("rate.output")+
+  geom_vline(xintercept = my.seg$psi[1,2]) + 
+   geom_vline(xintercept = my.seg$psi[2,2])+ 
+  geom_vline(xintercept = my.seg$psi[3,2])+ 
+   geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+  geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) +
+  theme_classic()
+```
+
+## {-}
