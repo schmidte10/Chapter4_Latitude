@@ -16,7 +16,6 @@ output:
     highlight: monochrome
     theme: cerulean
     latex_engine: xelatex
-    
 ---
 # Scenario 
 

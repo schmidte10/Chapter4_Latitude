@@ -39,7 +39,8 @@ library(tidybayes) # partial plots
 library(broom.mixed) # model investigation
 library(emmeans) # pairwise comparisons
 library(rstanarm) # pairwise comparisons - need for emmeans
-library(car) # for vif
+library(car) # for vif 
+library(modelsummary) # descriptive statistics
 ```
 
 # Set working directory 
@@ -357,7 +358,7 @@ growth3 <- growth2 |>
 ```{r descriptive-statistics}
 MinMax <- function(x) paste0('[', min(x, na.rm = TRUE), ', ', max(x, na.rm = TRUE), ']') 
 Range <- function(x) max(x, na.rm = TRUE) - min(x, na.rm = TRUE)
-datasummary(REGION (LENGTH + MASS) + (LENGTH + MASS) ~  median + MinMax + Range + Histogram, 
+datasummary(REGION*(LENGTH + MASS) + (LENGTH + MASS) ~  median + MinMax + Range + Histogram, 
             data=growth3)
 datasummary(REGION * DEV_TEMP * (LENGTH + MASS) + (LENGTH + MASS) ~  median + MinMax + Range + Histogram, 
             data=growth3)
