@@ -23,7 +23,7 @@ Within this chapter developmental plasticity was explored within _Acanthochromis
 
 # Load packages 
 
-```{r load-packages-1, warning=FALSE, message=FALSE}
+```{r load-packages-1, warning=TRUE}
 library(tidyverse) # data manipulation
 library(ggpubr) # figure arrangement 
 library(brms) # Bayesian models
@@ -37,7 +37,7 @@ library(tidybayes) # partial plots
 library(broom.mixed) # model investigation
 library(emmeans) # pairwise comparisons
 library(rstanarm) # pairwise comparisons - need for emmeans 
-library(modelsummary) # descriptive statistics
+library(modelsummary) # descriptive statistics 
 ```
 
 # Set working directory 
@@ -285,9 +285,9 @@ growth3 <- growth2 |>
 ```{r descriptive-statistics}
 MinMax <- function(x) paste0('[', min(x, na.rm = TRUE), ', ', max(x, na.rm = TRUE), ']') 
 Range <- function(x) max(x, na.rm = TRUE) - min(x, na.rm = TRUE)
-datasummary(REGION *(LENGTH + MASS) + (LENGTH + MASS) ~  mean + MinMax + Range + Histogram, 
+datasummary(REGION *(LENGTH + MASS) + (LENGTH + MASS) ~  N + mean + MinMax + Range + Histogram, 
             data=growth3)
-datasummary(REGION * DEV_TEMP * (LENGTH + MASS) + (LENGTH + MASS) ~  median + MinMax + Range + Histogram, 
+datasummary(REGION * DEV_TEMP * (LENGTH + MASS) + (LENGTH + MASS) ~  N + median + MinMax + Range + Histogram, 
             data=growth3)
 ```
 
@@ -921,3 +921,32 @@ int_draws_spread %>%
   facet_wrap(~ var, ncol = 1, scales = 'free_y') + 
   geom_vline(xintercept=0, color="red")
 ```
+
+```{r}
+growth_age_plot <- ggplot(growth3, aes(x=REGION, y=AGE_DAYS, fill=REGION, color=REGION)) + 
+  stat_halfeye(adjust =0.5, 
+               justification =-0.2, 
+               .width =0, 
+               point_color=NA) + 
+  geom_boxplot(width =0.12, 
+               outlier.color =NA, 
+               alpha =0.5) +
+  stat_dots(side = "left",
+            justification = 1.1,
+            binwidth = NA) + 
+  scale_fill_manual(values = c("firebrick4","dodgerblue4"))+ 
+  scale_color_manual(values = c("firebrick4","dodgerblue4"))+ 
+  scale_x_discrete(labels =c("leading" = "High", 
+                             "core" = "Low")) + 
+  theme_classic() +
+  labs(
+    x = "LATITUDE",
+    y = "AGE (DAYS)"
+  ) +
+  coord_flip() + 
+  theme(legend.position = "none") 
+
+ggsave(file="./figures/length.age.plot.svg",  plot=growth_age_plot, width=8, height=5, units = "in", dpi=300) 
+ggsave(file="./figures/length.age.plot.pdf",  plot=growth_age_plot, width=8, height=5, units = "in", dpi=300)
+```
+

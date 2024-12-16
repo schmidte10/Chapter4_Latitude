@@ -42,7 +42,8 @@ library(ggpubr) # arranging figures
 library(mgcv) # GAM 
 library(modelr) # plotting
 library(segmented) # piece wise regression 
-library(strucchange) #piece wise regression
+library(strucchange) #piece wise regression 
+library(patchwork) # figure
 ```
 
 # Set working directory 
@@ -105,6 +106,19 @@ CTmax.values <- lat_resp_dat2 |>
   group_by(sampleID) |> 
   slice(which.max(Temperature))
 ``` 
+
+# Descriptive data 
+
+```{r descriptive-statistics}
+MinMax <- function(x) paste0('[', min(x, na.rm = TRUE), ', ', max(x, na.rm = TRUE), ']') 
+Range <- function(x) max(x, na.rm = TRUE) - min(x, na.rm = TRUE)
+lat_resp_dat2_summary <- lat_resp_dat2 |> 
+  distinct(sampleID, replicate, .keep_all = TRUE)
+datasummary(region *(rate.output) ~  N + mean + MinMax + Range + Histogram, 
+            data=lat_resp_dat2_summary)
+datasummary(region * dev.temp * (rate.output) + (rate.output) ~  N + median + MinMax + Range + Histogram, 
+            data=lat_resp_dat2_summary)
+```
 
 # Exploratory data analysis  {.tabset}
 
@@ -1088,10 +1102,10 @@ ggplot(posterior_draws, aes(x=Temperature, y=.linpred)) +
   geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
                                         color="red"), 
               size=2) 
-```
+
 
 ### strucchange analysis 
-```{r}
+
 spline.data <- as.data.frame(x= spline_fit$x) |> 
   mutate(y = spline_fit$y)|> 
   rename(x = `spline_fit$x`)
@@ -1102,12 +1116,12 @@ bp.data <- breakpoints(spline.data$y~1)
 summary(bp.data) 
 plot(bp.data) 
 breakpoint.values=c(54,70,85); spline.data[breakpoint.values, c("x")] 
-```
+
 
 ### segement analysis 
 
-Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
-```{r}
+# Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
+
 my.lm <- lm(data=spline.data, y ~ x) 
 
 spline.data[breakpoint.values, c("x")]
@@ -1122,20 +1136,33 @@ my.seg$psi ; slope(my.seg)
 my.fitted <- fitted(my.seg)
 my.model <- data.frame(temperature = spline.data$x, rate.output= my.fitted)
 
-ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
-
-ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
-  geom_point(alpha=0.05, size=1) + 
-  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="red", 
-              size=3) + ylab("rate.output")+
+low_28.raw <- ggplot(my.model, aes(x=temperature, y=rate.output)) + 
+  geom_line() + 
   geom_vline(xintercept = my.seg$psi[1,2]) + 
-   geom_vline(xintercept = my.seg$psi[2,2])+ 
-  geom_vline(xintercept = my.seg$psi[3,2])+ 
-   geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
-  geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
-  geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
-  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) +
+  geom_vline(xintercept = my.seg$psi[2,2])+ 
+  geom_vline(xintercept = my.seg$psi[3,2]) +  
+  xlab("Temperature \u00B0C")+ 
+  ylab(expression("Oxygen uptake " ~ (mgO[2]^ -1)))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, 0.2))+
   theme_classic()
+
+
+low_28 <- ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color="coral")) +
+  geom_point(alpha=0.05, size=1) + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="coral", 
+              size=3) + ylab(expression("Oxygen uptake " ~ (mgO[2]^ -1)))+ 
+  xlab("") +
+  scale_x_continuous(limits=c(30,38), breaks = seq(30,38, 2))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, 0.2))+
+  #geom_vline(xintercept = my.seg$psi[1,2], alpha=0.2) + 
+   geom_vline(xintercept = my.seg$psi[1,2], linewidth=1.25)+ 
+  #geom_vline(xintercept = my.seg$psi[3,2], alpha=0.2)+ 
+   #geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+ #geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  #geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) + 
+  annotate("text", x=my.seg$psi[1,2]+1,y=1, label = paste0(round(my.seg$psi[1,2], 2)," \u00B0","C"), color="black") +
+  theme_classic() + theme(legend.position = "none"); low_28
 ```
 
 ## Low-latitude - 30C
@@ -1159,10 +1186,10 @@ ggplot(posterior_draws, aes(x=Temperature, y=.linpred)) +
   geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
                                         color="red"), 
               size=2) 
-```
+
 
 ### strucchange analysis 
-```{r}
+
 spline.data <- as.data.frame(x= spline_fit$x) |> 
   mutate(y = spline_fit$y)|> 
   rename(x = `spline_fit$x`)
@@ -1171,13 +1198,13 @@ fs.data <- Fstats(spline.data$y~1)
 bp.data <- breakpoints(spline.data$y~1)
 summary(bp.data) 
 plot(bp.data) 
-breakpoint.values=c(54,70,85); spline.data[breakpoint.values, c("x")] 
-```
+breakpoint.values=c(15,54,70,85); spline.data[breakpoint.values, c("x")] 
+
 
 ### segement analysis 
 
-Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
-```{r}
+#Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
+
 my.lm <- lm(data=spline.data, y ~ x) 
 
 spline.data[breakpoint.values, c("x")]
@@ -1192,7 +1219,15 @@ my.seg$psi ; slope(my.seg)
 my.fitted <- fitted(my.seg)
 my.model <- data.frame(temperature = spline.data$x, rate.output= my.fitted)
 
-ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+low_30.raw <- ggplot(my.model, aes(x=temperature, y=rate.output)) + 
+  geom_line() + 
+  geom_vline(xintercept = my.seg$psi[1,2]) + 
+  geom_vline(xintercept = my.seg$psi[2,2])+ 
+  geom_vline(xintercept = my.seg$psi[3,2]) +  
+  xlab("Temperature \u00B0C")+ 
+  ylab(expression("Oxygen uptake " ~ (mgO[2]^ -1)))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, 0.2))+
+  theme_classic()
 
 ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
   geom_point(alpha=0.05, size=1) + 
@@ -1206,6 +1241,23 @@ ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
   geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
   geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) +
   theme_classic() 
+
+low_30 <- ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color="red2")) +
+  geom_point(alpha=0.05, size=1, color="red2") + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="red2", 
+              size=3) + ylab(expression("Oxygen uptake " ~ (MgO[2]^ -1)))+ 
+  xlab("") +
+  scale_x_continuous(limits=c(30,38), breaks = seq(30,38, 2))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, 0.2))+
+  geom_vline(xintercept = my.seg$psi[2,2], linewidth=1.25) + 
+   #geom_vline(xintercept = my.seg$psi[2,2], alpha=0.2)+ 
+  #geom_vline(xintercept = my.seg$psi[3,2], alpha=0.2)+ 
+   #geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+ #geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  #geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) + 
+  annotate("text", x=my.seg$psi[2,2]+1,y=1, label = paste0(round(my.seg$psi[2,2], 2)," \u00B0","C"), color="black") +
+  theme_classic() + theme(legend.position = "none"); low_30
 ```
 
 ## Low-latitude - 31C
@@ -1229,10 +1281,10 @@ ggplot(posterior_draws, aes(x=Temperature, y=.linpred)) +
   geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
                                         color="red"), 
               size=2) 
-```
+
 
 ### strucchange analysis 
-```{r}
+
 spline.data <- as.data.frame(x= spline_fit$x) |> 
   mutate(y = spline_fit$y)|> 
   rename(x = `spline_fit$x`)
@@ -1242,12 +1294,11 @@ bp.data <- breakpoints(spline.data$y~1)
 summary(bp.data) 
 plot(bp.data) 
 breakpoint.values=c(55,70,85); spline.data[breakpoint.values, c("x")] 
-```
 
 ### segement analysis 
 
-Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
-```{r}
+#Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
+
 my.lm <- lm(data=spline.data, y ~ x) 
 
 spline.data[breakpoint.values, c("x")]
@@ -1262,7 +1313,15 @@ my.seg$psi ; slope(my.seg)
 my.fitted <- fitted(my.seg)
 my.model <- data.frame(temperature = spline.data$x, rate.output= my.fitted)
 
-ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+low_31.raw <- ggplot(my.model, aes(x=temperature, y=rate.output)) + 
+  geom_line() + 
+  geom_vline(xintercept = my.seg$psi[1,2]) + 
+  geom_vline(xintercept = my.seg$psi[2,2])+ 
+  geom_vline(xintercept = my.seg$psi[3,2]) +  
+  xlab("Temperature \u00B0C")+ 
+  ylab(expression("Oxygen uptake " ~ (mgO[2]^ -1)))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, 0.2))+
+  theme_classic()
 
 ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
   geom_point(alpha=0.05, size=1) + 
@@ -1276,6 +1335,23 @@ ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
   geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
   geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) +
   theme_classic()
+
+low_31 <- ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color="firebrick4")) +
+  geom_point(alpha=0.05, size=1, color="firebrick4") + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="firebrick4", 
+              size=3) + ylab(expression("Oxygen uptake " ~ (MgO[2]^ -1)))+ 
+  xlab(paste0("Temperature"," \u00B0","C")) +
+  scale_x_continuous(limits=c(30,38), breaks = seq(30,38, 2))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, 0.2))+
+  geom_vline(xintercept = my.seg$psi[1,2], linewidth=1.25) + 
+   #geom_vline(xintercept = my.seg$psi[2,2], alpha=0.2)+ 
+  #geom_vline(xintercept = my.seg$psi[3,2], alpha=0.2)+ 
+   #geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+ #geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  #geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) + 
+  annotate("text", x=my.seg$psi[1,2]+1,y=1, label = paste0(round(my.seg$psi[1,2], 2)," \u00B0","C"), color="black") +
+  theme_classic() + theme(legend.position = "none"); low_31
 ```
 
 ## High-latitude - 28C
@@ -1299,10 +1375,10 @@ ggplot(posterior_draws, aes(x=Temperature, y=.linpred)) +
   geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
                                         color="red"), 
               size=2) 
-```
+
 
 ### strucchange analysis 
-```{r}
+
 spline.data <- as.data.frame(x= spline_fit$x) |> 
   mutate(y = spline_fit$y)|> 
   rename(x = `spline_fit$x`)
@@ -1312,12 +1388,12 @@ bp.data <- breakpoints(spline.data$y~1)
 summary(bp.data) 
 plot(bp.data) 
 breakpoint.values=c(55,70,85); spline.data[breakpoint.values, c("x")] 
-```
+
 
 ### segement analysis 
 
-Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
-```{r}
+#Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
+
 my.lm <- lm(data=spline.data, y ~ x) 
 
 spline.data[breakpoint.values, c("x")]
@@ -1332,7 +1408,15 @@ my.seg$psi ; slope(my.seg)
 my.fitted <- fitted(my.seg)
 my.model <- data.frame(temperature = spline.data$x, rate.output= my.fitted)
 
-ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+high_28.raw <- ggplot(my.model, aes(x=temperature, y=rate.output)) + 
+  geom_line() + 
+  geom_vline(xintercept = my.seg$psi[1,2]) + 
+  geom_vline(xintercept = my.seg$psi[2,2])+ 
+  geom_vline(xintercept = my.seg$psi[3,2]) +  
+  xlab("Temperature \u00B0C")+ 
+  ylab(expression("Oxygen uptake " ~ (mgO[2]^ -1)))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, 0.2))+
+  theme_classic()
 
 ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
   geom_point(alpha=0.05, size=1) + 
@@ -1345,7 +1429,24 @@ ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
   geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
   geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
   geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) +
-  theme_classic()
+  theme_classic() 
+
+high_28 <- ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color="lightskyblue")) +
+  geom_point(alpha=0.05, size=1, color="lightskyblue") + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="lightskyblue", 
+              size=3) + ylab(expression("Oxygen uptake " ~ (MgO[2]^ -1)))+ 
+  xlab("") +
+  scale_x_continuous(limits=c(30,38), breaks = seq(30,38, 2))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, 0.2))+
+  #geom_vline(xintercept = my.seg$psi[1,2], linewidth=1.25) + 
+   geom_vline(xintercept = my.seg$psi[1,2], linewidth=1.25)+ 
+  #geom_vline(xintercept = my.seg$psi[3,2], alpha=0.2)+ 
+   #geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+ #geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  #geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) + 
+  annotate("text", x=my.seg$psi[1,2]+1,y=1, label = paste0(round(my.seg$psi[1,2], 2)," \u00B0","C"), color="black") +
+  theme_classic() + theme(legend.position = "none"); high_28
 ```
 
 ## High-latitude - 30C
@@ -1369,10 +1470,10 @@ ggplot(posterior_draws, aes(x=Temperature, y=.linpred)) +
   geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
                                         color="red"), 
               size=2) 
-```
+
 
 ### strucchange analysis 
-```{r}
+
 spline.data <- as.data.frame(x= spline_fit$x) |> 
   mutate(y = spline_fit$y)|> 
   rename(x = `spline_fit$x`)
@@ -1382,12 +1483,12 @@ bp.data <- breakpoints(spline.data$y~1)
 summary(bp.data) 
 plot(bp.data) 
 breakpoint.values=c(55,70,85); spline.data[breakpoint.values, c("x")] 
-```
+
 
 ### segement analysis 
 
-Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
-```{r}
+#Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
+
 my.lm <- lm(data=spline.data, y ~ x) 
 
 spline.data[breakpoint.values, c("x")]
@@ -1402,7 +1503,15 @@ my.seg$psi ; slope(my.seg)
 my.fitted <- fitted(my.seg)
 my.model <- data.frame(temperature = spline.data$x, rate.output= my.fitted)
 
-ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+high_30.raw <- ggplot(my.model, aes(x=temperature, y=rate.output)) + 
+  geom_line() + 
+  geom_vline(xintercept = my.seg$psi[1,2]) + 
+  geom_vline(xintercept = my.seg$psi[2,2])+ 
+  geom_vline(xintercept = my.seg$psi[3,2]) +  
+  xlab("Temperature \u00B0C")+ 
+  ylab(expression("Oxygen uptake " ~ (mgO[2]^ -1)))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, 0.2))+
+  theme_classic()
 
 ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
   geom_point(alpha=0.05, size=1) + 
@@ -1411,11 +1520,28 @@ ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
   geom_vline(xintercept = my.seg$psi[1,2]) + 
    geom_vline(xintercept = my.seg$psi[2,2])+ 
   geom_vline(xintercept = my.seg$psi[3,2])+ 
-   geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
-  geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
-  geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+   #geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+  #geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  #geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
   geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) +
   theme_classic()
+
+high_30 <- ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color="dodgerblue2")) +
+  geom_point(alpha=0.05, size=1, color="dodgerblue2") + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="dodgerblue2", 
+              size=3) + ylab(expression("Oxygen uptake " ~ (MgO[2]^ -1)))+ 
+  xlab("") +
+  scale_x_continuous(limits=c(30,38), breaks = seq(30,38, 2))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, 0.2))+
+  geom_vline(xintercept = my.seg$psi[2,2], linewidth=1.25) + 
+   #geom_vline(xintercept = my.seg$psi[2,2], alpha=0.2)+ 
+  #geom_vline(xintercept = my.seg$psi[3,2], alpha=0.2)+ 
+   #geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+ #geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  #geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) + 
+  annotate("text", x=my.seg$psi[2,2]+1,y=1, label = paste0(round(my.seg$psi[2,2], 2)," \u00B0","C"), color="black") +
+  theme_classic() + theme(legend.position = "none"); high_30
 ```
 
 ## High-latitude - 31C
@@ -1439,10 +1565,10 @@ ggplot(posterior_draws, aes(x=Temperature, y=.linpred)) +
   geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y, 
                                         color="red"), 
               size=2) 
-```
+
 
 ### strucchange analysis 
-```{r}
+
 spline.data <- as.data.frame(x= spline_fit$x) |> 
   mutate(y = spline_fit$y)|> 
   rename(x = `spline_fit$x`)
@@ -1452,12 +1578,12 @@ bp.data <- breakpoints(spline.data$y~1)
 summary(bp.data) 
 plot(bp.data) 
 breakpoint.values=c(55,70,85); spline.data[breakpoint.values, c("x")] 
-```
+
 
 ### segement analysis 
 
-Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
-```{r}
+#Use out from strucchange summary to number of breakpoints as well as approximate location of breakpoints
+
 my.lm <- lm(data=spline.data, y ~ x) 
 
 spline.data[breakpoint.values, c("x")]
@@ -1472,10 +1598,18 @@ my.seg$psi ; slope(my.seg)
 my.fitted <- fitted(my.seg)
 my.model <- data.frame(temperature = spline.data$x, rate.output= my.fitted)
 
-ggplot(my.model, aes(x=temperature, y=rate.output)) + geom_line()
+high_31.raw <- ggplot(my.model, aes(x=temperature, y=rate.output)) + 
+  geom_line() + 
+  geom_vline(xintercept = my.seg$psi[1,2]) + 
+  geom_vline(xintercept = my.seg$psi[2,2])+ 
+  geom_vline(xintercept = my.seg$psi[3,2]) +  
+  xlab("Temperature \u00B0C")+ 
+  ylab(expression("Oxygen uptake " ~ (mgO[2]^ -1)))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, 0.2))+
+  theme_classic()
 
 ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
-  geom_point(alpha=0.05, size=1) + 
+  geom_point(alpha=0.05, size=1, color="lightskyblue") + 
   geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="red", 
               size=3) + ylab("rate.output")+
   geom_vline(xintercept = my.seg$psi[1,2]) + 
@@ -1485,7 +1619,55 @@ ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color=.linpred)) +
   geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
   geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
   geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) +
-  theme_classic()
+  theme_classic() 
+
+high_31 <- ggplot(posterior_draws, aes(x=Temperature, y=.linpred, color="dodgerblue4")) +
+  geom_point(alpha=0.05, size=1, color="dodgerblue4") + 
+  geom_smooth(data=as.data.frame(spline_fit$data), aes(x=x, y=y), color="dodgerblue4", 
+              size=3) + 
+  ylab(expression("Oxygen uptake " ~ (MgO[2]^ -1)))+ 
+  xlab(paste0("Temperature"," \u00B0","C")) +
+  scale_x_continuous(limits=c(30,38), breaks = seq(30,38, 2))+
+  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, 0.2))+
+  geom_vline(xintercept = my.seg$psi[1,2], linewidth=1.25) + 
+   #geom_vline(xintercept = my.seg$psi[2,2], alpha=0.2)+ 
+  #geom_vline(xintercept = my.seg$psi[3,2], alpha=0.2)+ 
+   #geom_vline(xintercept = my.seg$psi[1,1], color="blue") + 
+ #geom_vline(xintercept = my.seg$psi[2,1], color="blue") + 
+  #geom_vline(xintercept = my.seg$psi[3,1], color="blue") + 
+  geom_line(data=my.model, aes(x=temperature, y=rate.output), color="black", size=2) + 
+  annotate("text", x=my.seg$psi[1,2]+1,y=1, label = paste0(round(my.seg$psi[1,2], 2)," \u00B0","C"), color="black") +
+  theme_classic() + theme(legend.position = "none"); high_31
 ```
 
 ## {-}
+
+# Figure 
+
+```{r fig.height=16, fig.width=10}
+figure4 <- (low_28 | high_28) /  (low_30 | high_30) / (low_31 | high_31) + 
+  plot_annotation(tag_levels ="A") & 
+  scale_y_continuous(name =expression("Oxygen uptake " ~ (mgO[2]^ -1)), 
+                     limits=c(0.2,1.6), breaks = seq(0.2,1.6, 0.2)) & 
+  theme(axis.text =element_text(size=14), 
+        axis.title = element_text(size=14)) ; figure4
+```
+
+```{r}
+ggsave(file="./figures/figure4.svg",  plot=figure4 , width=10, height=14, units = "in", dpi=300) 
+ggsave(file="./figures/figure4.pdf",  plot=figure4 , width=8, height=12, units = "in", dpi=1200)
+```
+
+```{r}
+Sfigure4 <- (low_28.raw | high_28.raw) /  (low_30.raw | high_30.raw) / (low_31.raw | high_31.raw) + 
+  plot_annotation(tag_levels ="A") & 
+  scale_y_continuous(name =expression("Oxygen uptake " ~ (mgO[2]^ -1)), 
+                     limits=c(0.2,1.6), breaks = seq(0.2,1.6, 0.2)) & 
+  theme(axis.text =element_text(size=14), 
+        axis.title = element_text(size=14)) ; Sfigure4
+```
+
+```{r}
+ggsave(file="./figures/Sfigure4.svg",  plot=Sfigure4 , width=10, height=14, units = "in", dpi=300) 
+ggsave(file="./figures/Sfigure4.pdf",  plot=Sfigure4 , width=8, height=12, units = "in", dpi=1200)
+```

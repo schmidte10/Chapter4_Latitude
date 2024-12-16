@@ -82,7 +82,7 @@ ggplot(growth3, aes(x=DEV_TEMP, y=LENGTH, color=FEMALE, fill=FEMALE)) +
 
 # Model1.1
 ```{r model1.1}
-model1.1 <- lmer(LENGTH ~ as.numeric(DEV_TEMP) + scale(DENSITY, scale=TRUE, center=TRUE)  + (1 |POPULATION), 
+model1.1 <- lmer(LENGTH ~ as.numeric(DEV_TEMP) + scale(DENSITY, scale=TRUE, center=TRUE)  + (1 |REGION), 
                  REML=FALSE,
                  data=growth3)   
 
@@ -96,15 +96,15 @@ dev_temp_pred <- data.frame(DEV_TEMP = seq(from=min(as.numeric(growth3$DEV_TEMP)
 dev_temp_pred$fit1.1 <- predict(model1.1, newdata = dev_temp_pred, re.form=NA) 
 
 ggplot(dev_temp_pred, aes(x = DEV_TEMP, y = fit1.1)) +
-  geom_jitter(data = growth3, aes(y = LENGTH, colour = POPULATION), width=0.2) +
+  geom_jitter(data = growth3, aes(y = LENGTH, colour = REGION), width=0.2) +
   geom_line(size = 2) +
   theme_classic() + 
-  facet_wrap(~POPULATION)
+  facet_wrap(~REGION)
 ``` 
 
 #Model1.2
 ```{r model1.2}
-model1.2 <- lmer(LENGTH ~ poly(as.numeric(DEV_TEMP), 2, raw = TRUE)+ scale(DENSITY, scale=TRUE, center=TRUE)  + (1 |POPULATION), 
+model1.2 <- lmer(LENGTH ~ poly(as.numeric(DEV_TEMP), 2, raw = TRUE)+ scale(DENSITY, scale=TRUE, center=TRUE)  + (1 |REGION), 
                  REML=FALSE,
                  data=growth3)  
 
@@ -114,10 +114,10 @@ r.squaredGLMM(model1.2)
 dev_temp_pred$fit1.2 <- predict(model1.2, newdata = dev_temp_pred, re.form=NA) 
 
 ggplot(dev_temp_pred, aes(x = DEV_TEMP, y = fit1.2)) +
-  geom_jitter(data = growth3, aes(y = LENGTH, colour = POPULATION), width=0.2) +
+  geom_jitter(data = growth3, aes(y = LENGTH, colour = REGION), width=0.2) +
   geom_line(size = 2) +
   theme_classic() + 
-  facet_wrap(~POPULATION)
+  facet_wrap(~REGION)
 ``` 
 
 # Differences between models 
@@ -133,7 +133,7 @@ Yes, the polynomial model is better
 
 # Model1.3
 ```{r model1.3}
-model1.3 <- lmer(LENGTH ~ poly(as.numeric(DEV_TEMP), 2, raw = TRUE) + scale(DENSITY, scale=TRUE, center=TRUE)  + (1 |POPULATION) + (1 |FEMALE), 
+model1.3 <- lmer(LENGTH ~ poly(as.numeric(DEV_TEMP), 2, raw = TRUE) + scale(DENSITY, scale=TRUE, center=TRUE)  + (1 |REGION) + (1 |FEMALE), 
                  REML=FALSE,
                  data=growth3) 
 
@@ -145,7 +145,7 @@ growth3$pred_pop1.3 <- predict(model1.3, re.form=NA)
 growth3$pred_geno1.3 <- predict(model1.3, re.form =~(1|FEMALE)) 
 
 ggplot(dev_temp_pred, aes(x = DEV_TEMP, y = fit1.3)) +
-  geom_jitter(data = growth3, aes(y = pred_geno1.3, colour = POPULATION), width=0.2) +
+  geom_jitter(data = growth3, aes(y = pred_geno1.3, colour = REGION), width=0.2) +
   geom_smooth(data = growth3, 
             aes(y=LENGTH, group=FEMALE, color=FEMALE), 
             method = "lm")  +
@@ -164,7 +164,7 @@ AIC(model1.1, model1.2, model1.3, k=2)
 
 # Model1.4 
 ```{r}
-model1.4 <- lmer(LENGTH ~ poly(as.numeric(DEV_TEMP), 2, raw = TRUE)+ scale(DENSITY, scale=TRUE, center=TRUE)  + (1 |POPULATION) + (1+DEV_TEMP|FEMALE), 
+model1.4 <- lmer(LENGTH ~ poly(as.numeric(DEV_TEMP), 2, raw = TRUE)+ scale(DENSITY, scale=TRUE, center=TRUE)  + (1 |REGION) + (1+DEV_TEMP|FEMALE), 
                  REML=FALSE,
                  data=growth3) 
 
@@ -176,7 +176,7 @@ growth3$pred_pop1.4 <- predict(model1.4, re.form=NA)
 growth3$pred_geno1.4 <- predict(model1.4, re.form =~(1+DEV_TEMP|FEMALE)) 
 
 ggplot(dev_temp_pred, aes(x = DEV_TEMP, y = fit1.4)) +
-  geom_jitter(data = growth3, aes(y = pred_geno1.4, colour = POPULATION), width=0.2) +
+  geom_jitter(data = growth3, aes(y = pred_geno1.4, colour = REGION), width=0.2) +
   stat_smooth(data = growth3, 
             aes(y=LENGTH, group=FEMALE, color=FEMALE), 
             method="lm", 
@@ -204,7 +204,7 @@ AIC(model1.1, model1.2, model1.3, model1.4, k=2)
 
 # Model1.5 
 ```{r warning=FALSE}
-model1.5 <- lmer(LENGTH ~ poly(as.numeric(DEV_TEMP), 2, raw = TRUE) + scale(DENSITY, scale=TRUE, center=TRUE)  + (1 |POPULATION) + (1+DEV_TEMP + I(DEV_TEMP^2)|FEMALE), 
+model1.5 <- lmer(LENGTH ~ poly(as.numeric(DEV_TEMP), 2, raw = TRUE) + scale(DENSITY, scale=TRUE, center=TRUE)  + (1 |REGION) + (1+DEV_TEMP + I(DEV_TEMP^2)|FEMALE), 
                  REML=FALSE,
                  data=growth3) 
 
@@ -216,7 +216,7 @@ growth3$pred_pop1.5 <- predict(model1.5, re.form=NA)
 growth3$pred_geno1.5 <- predict(model1.5, re.form =~(1+DEV_TEMP|FEMALE)) 
 
 ggplot(dev_temp_pred, aes(x = DEV_TEMP, y = fit1.5)) +
-  geom_jitter(data = growth3, aes(y = pred_geno1.5, colour = POPULATION), width=0.2) +
+  geom_jitter(data = growth3, aes(y = pred_geno1.5, colour = REGION), width=0.2) +
   stat_smooth(data = growth3, 
             aes(y=LENGTH, group=FEMALE, color=FEMALE), 
             method="lm", 

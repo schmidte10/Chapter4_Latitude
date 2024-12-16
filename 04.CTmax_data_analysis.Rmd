@@ -108,6 +108,18 @@ ctmax2 <- ctmax |>
   drop_na(TRAY_ORD)
 ```
 
+
+# Descriptive statistics 
+```{r descriptive-statistics}
+MinMax <- function(x) paste0('[', min(x, na.rm = TRUE), ', ', max(x, na.rm = TRUE), ']') 
+Range <- function(x) max(x, na.rm = TRUE) - min(x, na.rm = TRUE)
+datasummary(REGION *(LOE_MEAN_EAS) ~  N + mean + MinMax + Range + Histogram, 
+            data=ctmax2)
+datasummary(REGION * DEV_TEMP * (LOE_MEAN_EAS) + (LOE_MEAN_EAS) ~  N + median + MinMax + Range + Histogram, 
+            data=ctmax2)
+```
+
+
 # Exploratory data analysis 
 
 ```{r eda-1, fig.width=18, fig.height=8}
@@ -576,34 +588,34 @@ int_draws_plotting <- int_draws |>
 
 ctmax.plot <- int_draws_plotting |> 
   ggplot(aes(x=EXP_GROUP, y=CTMAX)) + 
-  #geom_hline(yintercept = 0, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
   stat_halfeye(aes(fill = EXP_GROUP, fill_ramp = after_stat(level)), 
                point_interval = median_hdci, 
-               .width = c(.66, .90, .95)) + 
+               .width = c(.66, .90, .95, 0.99)) + 
   scale_fill_ramp_discrete(na.translate=FALSE, 
-                           labels =c("0.95","0.89","0.66"), 
+                           labels =c("0.99","0.95","0.89","0.66"), 
                            name = "Credible interval") +
   scale_fill_manual(values = c("lightskyblue" ,"dodgerblue2", "dodgerblue4","coral", "red2","firebrick4"))+ 
   #scale_y_continuous(limits=c(-6,6), breaks = seq(-6,6, 1))+
   ylab("Temperature (\u00B0C)") + xlab("EXPERIMENTAL GROUP") +
+  geom_hline(yintercept = median(int_draws_plotting$CTMAX), linetype="dashed", linewidth=1, color="grey58", alpha=0.8) +
   scale_x_discrete(labels = c("Low latitude_DEV_TEMP_28.5" = paste0("Low latitude 28.5","\u00B0","C"), 
                               "Low latitude_DEV_TEMP_30" = paste0("Low latitude 30","\u00B0","C"),
                               "Low latitude_DEV_TEMP_31.5" = paste0("Low latitude 31.5","\u00B0","C"), 
                               "High latitude_DEV_TEMP_28.5" = paste0("High latitude 28.5","\u00B0","C"),
                               "High latitude_DEV_TEMP_30" = paste0("High latitude 30","\u00B0","C"),
                               "High latitude_DEV_TEMP_31.5" = paste0("High latitude 31.5","\u00B0","C"))) +
-  #annotate("text", x=6.8,y=1.4, label = paste0(round(mean(ctmax2$ctmax), 2)," (mm)"), color="grey58") +
+  annotate("text", x=0.6,y=37.25, label = paste0(round(median(int_draws_plotting$CTMAX), 2)," \u00B0","C"), color="grey58") +
   coord_flip() + 
   theme_classic() + 
   guides(fill = "none") + 
   theme(legend.position = c(.18,.86), 
         axis.title.y = element_text(margin = margin(r =0.3, unit = "in"), size = 12), 
-        axis.title.x = element_text(margin = margin(t = 0.3, unit="in"), size =12), 
+        axis.title.x = element_text(margin = margin(t = 0.0, unit="in"), size =12), 
         legend.key = element_rect(color="black", size=1.25)); ctmax.plot
 ```
 
 
 ```{r eval=FALSE, echo=TRUE}
-ggsave(file="./figures/ctmax.plot.svg",  plot=ctmax.plot, width=8, height=5, units = "in", dpi=300) 
-ggsave(file="./figures/ctmax.plot.pdf",  plot=ctmax.plot, width=8, height=5, units = "in", dpi=300)
+ggsave(file="./figures/figure3.svg",  plot=ctmax.plot, width=8, height=5, units = "in", dpi=300) 
+ggsave(file="./figures/figure3.pdf",  plot=ctmax.plot, width=8, height=5, units = "in", dpi=1200)
 ```
