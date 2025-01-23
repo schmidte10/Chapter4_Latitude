@@ -282,7 +282,7 @@ lat_resp_dat2 |>
 ```{r prior-investigation-random-factors}
 rate.priors2 <- prior(normal(0.635, 0.20), class="Intercept") +
   prior(student_t(3, 0, 0.45), class = "sigma")
-rate.priors <- prior(normal(430, 0.25), class="Intercept") +  
+rate.priors <- prior(normal(430, 25), class="Intercept") +  
   prior(student_t(3, 0, 195), class = "sigma")
 ```
 
@@ -419,7 +419,7 @@ rate.priors2 <- prior(normal(0.635, 0.20), class="Intercept") +
   prior(normal(0, 0.20), class="b") +
   prior(student_t(3, 0, 0.45), class = "sigma")
   
-  rate.priors <- prior(normal(430, 0.25), class="Intercept") + 
+  rate.priors <- prior(normal(430, 25), class="Intercept") + 
   prior(normal(0, 40), class="b") +
   prior(student_t(3, 0, 195), class = "sigma")
 ```

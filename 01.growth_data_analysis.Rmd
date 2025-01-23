@@ -23,7 +23,7 @@ Within this chapter developmental plasticity was explored within _Acanthochromis
 
 # Load packages 
 
-```{r load-packages-1, warning=TRUE}
+```{r load-packages-1, warning=FALSE}
 library(tidyverse) # data manipulation
 library(ggpubr) # figure arrangement 
 library(brms) # Bayesian models
@@ -105,16 +105,7 @@ growth2 <- growth |>
   mutate(CLUTCH_ORDER = as.factor(CLUTCH_ORDER), 
          EXP_GROUP = as.factor(paste0(REGION,"_",DEV_TEMP))) |> 
   inner_join(density, by=c("CLUTCH_NUMBER","TANK")) |> 
-  mutate(cLENGTH = scale(LENGTH, scale = FALSE)[,1], 
-         cMASS = scale(MASS, scale=FALSE)[,1], 
-         cFULTONK = scale(FULTONK, scale=FALSE)[,1], 
-         cMALE_STANDARD_LENGTH = scale(MALE_STANDARD_LENGTH, scale=FALSE)[,1], 
-         cMALE_MASS = scale(MALE_MASS, scale=FALSE)[,1], 
-         cFEMALE_STANDARD_LENGTH = scale(MALE_STANDARD_LENGTH, scale=FALSE)[,1], 
-         cFEMALE_MASS = scale(MALE_MASS, scale=FALSE)[,1], 
-         cDENSITY = scale(DENSITY, scale=FALSE)[,1], 
-         cAGE_DAYS = scale(AGE_DAYS, scale=FALSE)[,1],
-         TANK = as.numeric(as.character(TANK)),
+  mutate(TANK = as.numeric(as.character(TANK)),
          LEVEL = as.factor(case_when(TANK >= 1 & TANK <= 199 ~ 1,
                            TANK >= 200 & TANK <= 299 ~ 2,
                            TANK >= 300 & TANK <= 399 ~ 3,
@@ -123,9 +114,6 @@ growth2 <- growth |>
 
 save(growth2, file ="./import_files/growth2.RData")
 ```
-
-In the code above a number of variables were centered because within these metrics the value **0** is meaningless. For example you cannot have a fish length or mass of 0. Therefore, the mean was subtracted for a given variable was subtracted by every value. The y-intercept for these values will therefore reflect the mean, and the slope can be interpreted as 'y increases/decreases x amount for every 1-unit increase from the mean [INSERT METRIC]'. 
-
 
 # Exploratory data analysis {.tabset}
 
