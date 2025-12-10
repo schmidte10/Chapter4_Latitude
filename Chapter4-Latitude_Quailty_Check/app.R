@@ -39,7 +39,7 @@ lat_resp_dat2 <- lat_resp_dat |>
 # lat_resp_data2 IS filtered via quailty checks
 
 lat_resp_dat <-  lat_resp_dat2 |> 
-  mutate(dev.temp = as.factor(dev.temp), 
+  mutate(#dev.temp = as.factor(dev.temp), 
          replicate = str_sub(sampleID, -1,-1), 
          population = factor(population))  
   
