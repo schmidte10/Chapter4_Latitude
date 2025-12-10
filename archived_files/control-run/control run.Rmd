@@ -1,0 +1,215 @@
+---
+title: "Control run"
+author: "Elliott Schmidt"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+setwd("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude")
+```
+
+```{r setup, include=FALSE, hide=TRUE}
+knitr::opts_knit$set(root.dir = "C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude")
+```
+
+```{r libraries, message=FALSE, warning=FALSE}
+library("respR")
+library("tidyverse") 
+library("data.table") 
+library("hms")
+library("kableExtra")
+```
+
+### Set working directory 
+
+Next we will set the working directory. This should always be done in your Rscripts to make sure your files are being saved to the correct location. It can also make it easier to import files. Not sure what directory you're in. Try using the **getwd()** function. 
+
+```{r setwd, message=FALSE, warnings=FALSE, eval=FALSE}
+setwd("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude")
+```
+
+
+### Importing data from Firesting 
+
+Now we will import our firesting file. There are a couple special notes to make about code that was run above. The code above was imported via the package _readr_ which gets loaded when load the _tidyverse_ package. This has the benefit of letting you see what the dataframe will look like before importing it and I highly suggest you do this the first time that you import your data. Secondly, you may have to **skip** the first 19 rows from the firesting file as these rows contain metadata, and not the actually oxygen data that you will be using.  
+#### Importing experiment data
+```{r importing data, cache=TRUE, warning=FALSE, echo=TRUE, results="hide"}
+firesting <- read_delim("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/2023/2023_CTmaxResp/Experiment_ 29 May 2023 09 53AM/Oxygen data raw/firesting.txt", 
+                             delim = "\t", escape_double = FALSE, 
+                             col_types = cols(`...2` = col_time(format = "%H:%M:%S")), 
+                             trim_ws = TRUE, skip = 18) 
+firesting <- firesting[-1,]
+
+```
+
+#### Important Note 1 
+
+If you have multiple columns with oxygen data and wanted to expect them all at once you could use the code below: 
+
+```{r data_manipulation-multi-inspect, hide=TRUE}
+firesting2 <- firesting %>% 
+  select(c(1:3,5:8,10)) %>% 
+  rename(TIME = ...2, 
+         dTIME = ...3, 
+         DATE = ...1, 
+         ch1 = Oxygen...5, 
+         ch2 = Oxygen...6,
+         ch3 = Oxygen...7, 
+         ch4 = Oxygen...8) %>% 
+  select(c("dTIME", "ch1","ch2","ch3","ch4","TIME","Temperature")) %>% 
+  #rename(Oxygen = chamber) %>% 
+  mutate(dTIME = as.numeric(dTIME), 
+         #Oxygen = as.numeric(Oxygen), 
+         TIME = as.character(TIME), 
+         Temp = as.numeric(Temperature))
+
+
+
+firesting3 <- firesting %>% 
+  select(c(3,5:8,10)) %>% 
+  rename(dTIME = ...3, 
+         ch1 = Oxygen...5, 
+         ch2 = Oxygen...6,
+         ch3 = Oxygen...7, 
+         ch4 = Oxygen...8) %>%
+  mutate(dTIME = as.numeric(dTIME), 
+         ch1 = as.numeric(ch1), 
+         ch2 = as.numeric(ch2),
+         ch3 = as.numeric(ch3),
+         ch4 = as.numeric(ch4),
+         Temperature = as.numeric(Temperature))
+
+inspect(firesting3, time = 1, oxygen = 2:5, add.data = "Temperature" )
+```
+
+### Calculate background and speciemen rates 
+
+Before we move forward and calculate rates of oxygen use, we need to calculate background rates so that they can be extracted from the data. In this example we will be extracting both **pre-** and **post** experiment background rates. 
+
+```{r background rates} 
+
+#--- background rates ---#
+bg_start <- inspect(firesting3, time = 1, oxygen =5) |> 
+  subset_data(from = 2272, 
+              to = 2451, 
+              by="row") |>  
+  calc_rate.bg()
+
+bg_end <- inspect(firesting3, time = 1, oxygen =5) |> 
+  subset_data(from = 25604, 
+              to = 25654, 
+              by="row") |>  
+  calc_rate.bg()
+#--- speciement rates ---#
+apoly1 <- inspect(firesting3, time = 1, oxygen =2) |> 
+  subset_data(from = 2272, 
+              to = 25654, 
+              by="row") |>
+  calc_rate.int(starts = 400, 
+                wait = 20, 
+                measure= 160, 
+                by = "row")
+
+#--- speciement rates ---#
+apoly2 <- inspect(firesting3, time = 1, oxygen =3) |> 
+  subset_data(from = 2272, 
+              to = 25654, 
+              by="row") |>
+  calc_rate.int(starts = 400, 
+                wait = 20, 
+                measure= 160, 
+                by = "row") 
+
+#--- speciement rates ---#
+apoly3 <- inspect(firesting3, time = 1, oxygen =4) |> 
+  subset_data(from = 2272, 
+              to = 25654, 
+              by="row") |>
+  calc_rate.int(starts = 400, 
+                wait = 20, 
+                measure= 160, 
+                by = "row") 
+
+
+```
+### Adjust rates
+
+```{r subset_data}
+apoly1_adj <- adjust_rate(apoly1,  
+                          by = bg_start, 
+                          by2 = bg_end,
+                          method = "linear")
+
+
+apoly2_adj <- adjust_rate(apoly2,  
+                          by = bg_start, 
+                          by2 = bg_end,
+                          method = "linear")
+
+apoly3_adj <- adjust_rate(apoly3,  
+                          by = bg_start, 
+                          by2 = bg_end,
+                          method = "linear")
+
+
+```
+
+### Convert the adjust rates to useable units 
+
+```{r adjust_rates}
+apoly_cr.int_conv_1 <- convert_rate(apoly1_adj, 
+                                oxy.unit = "%Air", 
+                                time.unit = "secs", 
+                                output.unit = "mg/h/kg", 
+                                volume = 0.07160,
+                                mass = 0.0013895,
+                                S = 37, 
+                                t = 30, # will implement shared code in future
+                                P = 1.019) 
+
+apoly_cr.int_conv_2 <- convert_rate(apoly2_adj, 
+                                oxy.unit = "%Air", 
+                                time.unit = "secs", 
+                                output.unit = "mg/h/kg", 
+                                volume = 0.07160,
+                                mass = 0.0018331,
+                                S = 37, 
+                                t = 30, # will implement shared code in future
+                                P = 1.019) 
+
+apoly_cr.int_conv_3 <- convert_rate(apoly3_adj, 
+                                oxy.unit = "%Air", 
+                                time.unit = "secs", 
+                                output.unit = "mg/h/kg", 
+                                volume = 0.07160,
+                                mass = 0.0018397,
+                                S = 37, 
+                                t = 30, # will implement shared code in future
+                                P = 1.019) 
+
+summary(apoly_cr.int_conv_1); summary(apoly_cr.int_conv_2); summary(apoly_cr.int_conv_3)
+```
+
+### Pre-Quailty control 
+
+```{r qc}
+plot(apoly_cr.int_conv_1, type = "rate"); plot(apoly_cr.int_conv_2, type = "rate"); plot(apoly_cr.int_conv_3, type = "rate")
+```
+
+### Post-Quailty control 
+```{r pqc}
+RMR1 <- apoly_cr.int_conv_1 |> 
+  select_rate(method = "rsq", n = c(0.95, 1)) 
+RMR2 <- apoly_cr.int_conv_2 |> 
+  select_rate(method = "rsq", n = c(0.95, 1)) 
+RMR3 <- apoly_cr.int_conv_3 |> 
+  select_rate(method = "rsq", n = c(0.95, 1)) 
+
+
+```
+
+```{r}
+plot(RMR1, type = "rate"); plot(RMR2, type = "rate"); plot(RMR3, type = "rate")
+```
+

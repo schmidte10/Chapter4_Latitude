@@ -43,7 +43,8 @@ library(mgcv) # GAM
 library(modelr) # plotting
 library(segmented) # piece wise regression 
 library(strucchange) #piece wise regression 
-library(patchwork) # figure
+library(patchwork) # figure 
+library(modelsummary)
 ```
 
 # Set working directory 
@@ -117,7 +118,11 @@ lat_resp_dat2_summary <- lat_resp_dat2 |>
 datasummary(region *(rate.output) ~  N + mean + MinMax + Range + Histogram, 
             data=lat_resp_dat2_summary)
 datasummary(region * dev.temp * (rate.output) + (rate.output) ~  N + median + MinMax + Range + Histogram, 
-            data=lat_resp_dat2_summary)
+            data=lat_resp_dat2_summary) 
+
+lat_resp_dat2_summary |> 
+  group_by(region, dev.temp) |> 
+  summarise(n_tanks =n_distinct(female))
 ```
 
 # Exploratory data analysis  {.tabset}
@@ -418,7 +423,9 @@ lat_resp_dat2 |>
 rate.priors2 <- prior(normal(0.635, 0.20), class="Intercept") + 
   prior(normal(0, 0.20), class="b") +
   prior(student_t(3, 0, 0.45), class = "sigma")
-  
+```
+
+```{r echo=FALSE, eval=FALSE}
   rate.priors <- prior(normal(430, 25), class="Intercept") + 
   prior(normal(0, 40), class="b") +
   prior(student_t(3, 0, 195), class = "sigma")
@@ -621,7 +628,7 @@ pp_check(model1.gamk4, type = 'dens_overlay_grouped', ndraws=150, group="dev.tem
 #--- DHARMa checks ---#
 preds <- posterior_predict(model1.gamk4, ndraws=250, summary=FALSE)
 model1.gamk4_resids <- createDHARMa(simulatedResponse = t(preds), 
-                              observedResponse = lat_resp_dat2$rate.output, 
+                              observedResponse = lat_resp_dat2$rate.output2, 
                               fittedPredictedResponse = apply(preds, 2, mean), 
                               integerResponse = 'student')
 plot(model1.gamk4_resids) ; testDispersion(model1.gamk4_resids)

@@ -1,0 +1,284 @@
+#--- Loading packages ---#
+library(ggplot2)
+library(sf)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(ggspatial)
+library(tidyverse)
+library(cowplot)
+library(grid)
+library(ggpubr)
+library(ggrepel)
+#--- Loading shape data ---#
+GBR_data <- st_read("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Statistics_wrkshp/Maps/TS_AIMS_NESP_Torres_Strait_Features_V1b_with_GBR_Features")
+class(GBR_data)
+
+
+#--- Filtering islands in Australia only ---#
+#--- GBR data ---#
+# Sampling 500 random reefs from the dataset so it won't be too heavy
+GBR_data_sub2 <- GBR_data %>% 
+  filter(DATASET == "GBR Features" & 
+           LEVEL_1 == "Reef" & 
+           Country == "Australia" &
+           GBR_ID %in% sample(unique(GBR_data$GBR_ID)) |   
+           GBR_ID == "17001A" | 
+           GBR_ID == "16044B" | 
+           GBR_ID == "16026" |
+           GBR_ID == "20308" | 
+           QLD_NAME == "Arlington Reef") %>% 
+  filter(SHAPE_AREA >= 3) %>%
+  add_row(QLD_NAME = "Cockermouth Island", X_COORD = 149.398, Y_COORD =-20.772)  %>% 
+  add_row(QLD_NAME = "Keswick Island", X_COORD = 149.406, Y_COORD =-20.908)
+
+
+myreefs.core <- GBR_data %>% 
+  filter(DATASET == "GBR Features" & 
+           LEVEL_1 == "Reef" & 
+           Country == "Australia" & 
+          QLD_NAME != "U/N Reef" & 
+           QLD_NAME != "U/N Rock") %>% 
+  filter(GBR_ID == "17001A" | 
+           GBR_ID == "16044B" | 
+           GBR_ID == "16026")  
+
+myreefs.leading <- GBR_data %>% 
+  filter(DATASET == "GBR Features" & 
+           LEVEL_1 == "Reef" & 
+           Country == "Australia" & 
+           QLD_NAME != "U/N Reef" & 
+           QLD_NAME != "U/N Rock") %>% 
+  filter(GBR_ID == "20308")%>% 
+  add_row(GBR_NAME = "Cockermouth Island", X_COORD = 149.398, Y_COORD =-20.772)  %>% 
+  #add_row(GBR_NAME = "Keswick Island", X_COORD = 149.406, Y_COORD =-20.908) 
+  add_row(GBR_NAME = "St. Bees Island", X_COORD = 149.663, Y_COORD =-20.927)
+  #filter(GBR_NAME != "Chauvel Reefs (South)")
+
+myreefs.stations <- GBR_data %>% 
+  filter(QLD_NAME == "Heron Island" | 
+           QLD_NAME =="Lizard Island" | 
+           QLD_NAME =="Great Palm Island") 
+       
+
+
+
+# Putting the gbr dataset in the same coordinate system as the AUS dataset
+world <- ne_countries(scale = "medium", returnclass = "sf")
+AUS <- world %>% 
+  filter(name_long == "Australia") 
+coords <- sf::st_transform(GBR_data_sub2,
+                           crs = st_crs(AUS)$proj4string)
+
+map_aus <- ggplot(data = AUS) +
+  geom_sf(size = 0.1, fill = "#333333") +
+  coord_sf(expand = F, xlim = c(112,154), ylim = c(-45,-10)) +
+  geom_rect(aes(xmin=142, xmax=153, ymin=-25, ymax=-10),fill="transparent", linetype = "dotted", color="firebrick") +
+  theme(plot.background = element_rect(fill = "transparent", colour = NA),
+        panel.background = element_rect(fill = "transparent"),
+        panel.grid = element_blank(),
+        panel.border= element_blank(),
+        axis.text.x= element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank())
+
+#--- Plot ---#
+p1 <- ggplot() +
+  geom_sf(data = coords,fill = "gray90", color = "grey20", size = 0.5) +
+  geom_sf(data = AUS,fill = "gray90", color = "#333333", size = 0.1) +
+  annotation_scale(location = "bl", width_hint = 0.5) +
+  annotation_north_arrow(location = "bl", which_north = "true", 
+                         pad_x = unit(0.1, "in"), pad_y = unit(0.25, "in"),
+                         style = north_arrow_fancy_orienteering) +
+  coord_sf(xlim = c(141, 153), ylim = c(-25, -10), expand = F) + 
+  xlab("Longitude") + ylab("Latitude") +
+  theme(panel.background = element_rect(fill = "lightblue"), 
+        panel.grid.major = element_line(colour = "lightblue")) + 
+  geom_point(data = myreefs.core, aes(x = X_COORD, y = Y_COORD), size = 3, 
+             shape = 21, fill = "#B2182B")+ 
+  geom_point(data = myreefs.leading, aes(x = X_COORD, y = Y_COORD), size = 3, 
+             shape = 21, fill = "#4393C3") + 
+  #geom_point(data= myreefs.stations, aes(x = X_COORD, y = Y_COORD), size =3, 
+             #shape =21, fill="black", color ="black") +
+  geom_rect(aes(xmin=145, xmax=147, ymin=-17.5, ymax=-16),fill="transparent", linetype = "dotted", color="#B2182B") + 
+  geom_rect(aes(xmin=148.5, xmax=151, ymin=-21.7, ymax=-20.2),fill="transparent", linetype = "dotted", color="#4393C3") + 
+  annotate("text", x = 149.8, y = -14, label = "Coral \nSea", fontface = "italic", size = 6) + 
+  annotate("text", x =146.6384, y =-18.73829, label ="P", color="white", size =2) + 
+  annotate("text", x =145.4804, y =-14.66714, label ="L", color="white", size =2) + 
+  annotate("text", x =151.9254, y =-23.44291, label ="H", color="white", size =2);p1 
+
+insert1 <- ggplot() +
+  geom_sf(data = coords,fill = "gray90", color = "grey20", size = 0.5) +
+  geom_sf(data = AUS,fill = "gray90", color = "#333333", size = 0.1) +
+  annotation_scale(location = "bl", width_hint = 0.3) +
+  coord_sf(xlim = c(145, 147), ylim = c(-17.6, -16), expand = F) +
+  theme(panel.background = element_rect(fill = "lightblue"), 
+        panel.grid.major = element_line(colour = "lightblue")) +
+  xlab("")+ylab("")+
+  #annotate("segment", x = 145.7926, xend = 145.7926+0.3, y = -16.32093, yend = -16.32093+0.18, colour = "black", size = 1)+
+  #annotate("segment", x = 146.2049, xend = 146.2049+0.3, y = -16.99838, yend = -16.99838+0.18, colour = "black", size = 1)+
+  #annotate("segment", x = 145.9929, xend = 145.9929+0.3, y = -16.65520, yend = -16.65520+0.18, colour = "black", size = 1)+
+  geom_point(data = myreefs.core, aes(x = X_COORD, y = Y_COORD), size = 5, 
+             shape = 21, fill = "#B2182B") + 
+  geom_label(data = myreefs.core, aes(X_COORD+.3, Y_COORD+.01, label=QLD_NAME), fill = "white")+
+  theme(axis.text.x=element_blank(), 
+        axis.ticks.x=element_blank(), 
+        axis.text.y=element_blank(),
+        panel.border = element_rect(colour = "#DA3A36", fill=NA, size=2),
+        axis.ticks.y=element_blank()); insert1
+
+insert2 <- ggplot() +
+  geom_sf(data = coords,fill = "gray90", color = "grey20", size = 0.5) +
+  geom_sf(data = AUS,fill = "gray90", color = "#333333", size = 0.1) +
+  annotation_scale(location = "bl", width_hint = 0.3) +
+  coord_sf(xlim = c(148, 151), ylim = c(-21.7, -20.2), expand = F) +
+  theme(panel.background = element_rect(fill = "lightblue"), 
+        panel.grid.major = element_line(colour = "lightblue")) +  
+  geom_point(data = myreefs.leading, aes(x = X_COORD, y = Y_COORD), size = 5, 
+             shape = 21, fill = "#4393C3")+ 
+  xlab("") + ylab("") +
+  geom_label_repel(data = myreefs.leading, aes(X_COORD, Y_COORD, label=GBR_NAME), fill = "white")+
+  theme(axis.text.x=element_blank(), 
+        axis.ticks.x=element_blank(), 
+        axis.text.y=element_blank(),
+        panel.border = element_rect(colour = "#4393C3", fill=NA, size=2),
+        axis.ticks.y=element_blank());insert2
+
+#---final figure ---# 
+
+cb <- ggarrange(insert1, insert2,
+          ncol = 1, nrow = 2, labels = c("B","C"), 
+          align = "hv",
+          heights = c (1,1), 
+          widths = c (1,1)) 
+
+map <- ggarrange(p1, cb, 
+                 ncol=2, 
+                 nrow=1, 
+                 labels = c("A","")); map
+
+ggsave("./figures/figure1.jpeg", width = 11, height = 8, units = "in", dpi = 360)
+ggsave("./figures/figure1.pdf", width = 11, height = 8, units = "in", dpi = 1200)
+
+#--- 3MT final figure ---# 
+mt_figure <- ggplot() +
+  geom_sf(data = coords,fill = "NA", color = "white", size = 0.5) +
+  geom_sf(data = AUS,fill = "NA", color = "white", size = 0.1) +
+  #annotation_scale(location = "bl", width_hint = 0.5) +
+  #annotation_north_arrow(location = "bl", which_north = "true", 
+                         #pad_x = unit(0.1, "in"), pad_y = unit(0.25, "in"),
+                         #style = north_arrow_fancy_orienteering) +
+  coord_sf(xlim = c(141, 153), ylim = c(-25, -10), expand = F) + 
+  xlab("Longitude") + ylab("Latitude") +
+  theme(panel.background = element_rect(fill = "transparent", 
+                                        color = NA_character_),
+        plot.background = element_rect(fill = "transparent",
+                                       colour = NA_character_), , 
+        panel.grid.major = element_line(colour = "NA")) + 
+  geom_point(data = myreefs.core, aes(x = X_COORD, y = Y_COORD), size = 3, 
+             shape = 21,fill = "#B2182B" )+ 
+  geom_point(data = myreefs.leading, aes(x = X_COORD, y = Y_COORD), size = 3, 
+             shape = 21, fill = "#4393C3") + 
+  geom_rect(aes(xmin=141, xmax=153, ymin=-25, ymax=-10),fill="transparent", linetype = "dotted", color="#B2182B") + 
+  geom_rect(aes(xmin=148.5, xmax=151, ymin=-21.7, ymax=-20.2),fill="transparent", linetype = "dotted", color="#4393C3") + 
+  #annotate("text", x = 149.3, y = -17.5, label = "Coral \nSea", size = 7, fontface = "italic", color = "black", alpha = 0.3) + 
+  annotate("text", x = 144.8, y = -21, label = "AUSTRALIA", size = 9, fontface = "italic", color = "black", alpha = 0.3) 
+  #annotate("text", x = 146, y = -19.2589, label = "Townsville", fontface = "italic", size = 4) + 
+  #annotate("text", x = 145.4, y = -16.92366, label = "Cairns", fontface = "italic", size = 4) + 
+ # annotate("text", x = 148.3, y = -21.15345, label = "Mackay", fontface = "italic", size = 4);mt_figure 
+
+
+ggsave('mt_figure2.png',mt_figure,bg='black', 
+       width = 8, height = 10, units = "in", dpi=300, device = 'png')
+
+#---supplemental figure ---# 
+reefs_sampled <- read_csv("map/reefs_samples_final.csv") 
+reefs_sampled_low <- reefs_sampled |> 
+  filter(REGION == "Low")
+reefs_sampled_high <- reefs_sampled |> 
+  filter(REGION == "High")
+
+p1 <- ggplot() +
+  geom_sf(data = coords,fill = "gray90", color = "grey20", size = 0.5) +
+  geom_sf(data = AUS,fill = "gray90", color = "#333333", size = 0.1) +
+  annotation_scale(location = "bl", width_hint = 0.5) +
+  annotation_north_arrow(location = "bl", which_north = "true", 
+                         pad_x = unit(0.1, "in"), pad_y = unit(0.25, "in"),
+                         style = north_arrow_fancy_orienteering) +
+  coord_sf(xlim = c(141, 153), ylim = c(-25, -10), expand = F) + 
+  xlab("Longitude") + ylab("Latitude") +
+  theme(panel.background = element_rect(fill = "lightblue"), 
+        panel.grid.major = element_line(colour = "lightblue")) + 
+  geom_point(data = myreefs.core, aes(x = X_COORD, y = Y_COORD), size = 3, 
+             shape = 21, fill = "firebrick4")+ 
+  geom_point(data = myreefs.leading, aes(x = X_COORD, y = Y_COORD), size = 3, 
+             shape = 21, fill = "dodgerblue4") + 
+  #geom_point(data= myreefs.stations, aes(x = X_COORD, y = Y_COORD), size =3, 
+  #shape =21, fill="black", color ="black") +
+  geom_rect(aes(xmin=145, xmax=147, ymin=-17.5, ymax=-16),fill="transparent", linetype = "dotted", color="firebrick4") + 
+  geom_rect(aes(xmin=147.5, xmax=152.8, ymin=-23, ymax=-19.5),fill="transparent", linetype = "dotted", color="dodgerblue4") + 
+  annotate("text", x = 149.8, y = -14, label = "Coral \nSea", fontface = "italic", size = 6) + 
+  annotate("text", x =146.6384, y =-18.73829, label ="P", color="white", size =2) + 
+  annotate("text", x =145.4804, y =-14.66714, label ="L", color="white", size =2) + 
+  annotate("text", x =151.9254, y =-23.44291, label ="H", color="white", size =2);p1
+
+insert1.sampled.reefs <- ggplot() +
+  geom_sf(data = coords,fill = "gray90", color = "grey20", size = 0.5) +
+  geom_sf(data = AUS,fill = "gray90", color = "#333333", size = 0.1) +
+  annotation_scale(location = "bl", width_hint = 0.3) +
+  coord_sf(xlim = c(145, 148), ylim = c(-18, -16), expand = F) +
+  #coord_sf(xlim = c(145, 155), ylim = c(-20, -10), expand = F) +
+  theme(panel.background = element_rect(fill = "lightblue"), 
+        panel.grid.major = element_line(colour = "lightblue")) +
+  xlab("")+ylab("")+
+  geom_point(data =reefs_sampled_low, aes(x =lon, y=lat), 
+             size =4, 
+             shape =21, 
+             color ="black",
+             alpha =0.4,
+             fill ="firebrick") +
+  geom_point(data = myreefs.core, aes(x = X_COORD, y = Y_COORD), size = 5, 
+             shape = 21, fill = "firebrick4") + 
+  geom_label(data = myreefs.core, aes(X_COORD+.5, Y_COORD+.01, label=QLD_NAME), fill = "white")+
+  theme(axis.text.x=element_blank(), 
+        axis.ticks.x=element_blank(), 
+        axis.text.y=element_blank(),
+        panel.border = element_rect(colour = "firebrick4", fill=NA, size=2),
+        axis.ticks.y=element_blank()); insert1.sampled.reefs
+
+insert2.sampled.reefs <- ggplot() +
+  geom_sf(data = coords,fill = "gray90", color = "grey20", size = 0.5) +
+  geom_sf(data = AUS,fill = "gray90", color = "#333333", size = 0.1) +
+  annotation_scale(location = "bl", width_hint = 0.3) +
+  coord_sf(xlim = c(147.5, 153), ylim = c(-23, -19.5), expand = F) +
+  #coord_sf(xlim = c(148, 151), ylim = c(-21.7, -20.2), expand = F) +
+  theme(panel.background = element_rect(fill = "lightblue"), 
+        panel.grid.major = element_line(colour = "lightblue")) +  
+  geom_point(data = myreefs.leading, aes(x = X_COORD, y = Y_COORD), size = 5, 
+             shape = 21, fill = "dodgerblue4")+ 
+  xlab("") + ylab("") +
+  geom_point(data =reefs_sampled_high, aes(x =lon, y=lat), 
+             size =4, 
+             shape =21, 
+             color ="black",
+             alpha =0.5,
+             fill ="dodgerblue4") +
+  geom_label_repel(data = myreefs.leading, aes(X_COORD, Y_COORD, label=GBR_NAME), fill = "white")+
+  theme(axis.text.x=element_blank(), 
+        axis.ticks.x=element_blank(), 
+        axis.text.y=element_blank(),
+        panel.border = element_rect(colour = "#4393C3", fill=NA, size=2),
+        axis.ticks.y=element_blank());insert2.sampled.reefs
+
+cb <- ggarrange(insert1.sampled.reefs, insert2.sampled.reefs,
+                ncol = 1, nrow = 2, labels = c("B","C"), 
+                align = "hv",
+                heights = c (1,1), 
+                widths = c (1,1)) 
+
+map.sampled <- ggarrange(p1, cb, 
+                 ncol=2, 
+                 nrow=1, 
+                 labels = c("A","")); map.sampled
+
+ggsave("./figures/Sfigure1a.jpeg", width = 11, height = 8, units = "in", dpi = 360)
+ggsave("./figures/Sfigure1a.pdf", width = 11, height = 8, units = "in", dpi = 1200)

@@ -731,7 +731,7 @@ model_gamma.priors <- prior(normal(1.13, 0.20), class="Intercept") +
 
 ## Model3.1_gamma1 {.tabset}
 ### Model
-```{r model3.3_gamma1, cache=TRUE}
+```{r model3.3_gamma1, cache=TRUE, eval=FALSE, echo=FALSE}
 f.model3.1_gamma1 <- bf(MASS ~ 1 + 
                          DEV_TEMP*REGION +  
                          scale(DENSITY, center=TRUE, scale=TRUE) + 
@@ -754,6 +754,11 @@ model3.1_gamma1 <- brm(f.model3.1_gamma1,
               control = list(adapt_delta=0.95))  
 saveRDS(model3.1_gamma1, file="./02.mass_data_analysis_files/model3.1_gamma1.RDS")
 ```
+
+```{r}
+model3.1_gamma1 <- readRDS("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude/02.mass_data_analysis_files/model3.1_gamma1.RDS")
+```
+
 
 ### DHARMa
 ```{r model3.1_gamma1-DHARMa}
@@ -832,17 +837,19 @@ model3.1_gamma1 |> mcmc_plot(type='intervals')
 ## emmeans - pariwise 
 
 ```{r emmeans-pairwise}
+out <- model3.1_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") 
+out$emmeans |>
+  as.data.frame()
+
+model3.1_gamma1 |> emmeans(pairwise ~ DEV_TEMP, type="response") |> regrid() |> pairs() |> summary(infer=TRUE)
+
 model3.1_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() |> pairs(by="DEV_TEMP") |> summary(infer=TRUE)
 
 model3.1_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid()|> pairs(by="REGION") |> summary(infer=TRUE)
 
 model3.1_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() 
 
-model3.1_gamma1 |> emmeans(pairwise ~ DEV_TEMP, type="response") |> regrid() |> pairs() |> summary(infer=TRUE) 
-
-model3.1_gamma1 |> emmeans(pairwise ~ DEV_TEMP, type="response") |> regrid() 
-
-
+ 
 ```
 
 ## probabilities 
@@ -973,14 +980,22 @@ model3.1.nolength <- brm(f.model3.1.nolength,
               control = list(adapt_delta=0.95))  
 saveRDS(model3.1.nolength, file="./02.mass_data_analysis_files/model3.1_growth_nolength.RDS")
 ```
+
+```{r}
+model3.1_growth_nolength <- readRDS("C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude/02.mass_data_analysis_files/model3.1_growth_nolength.RDS")
+```
+
+
 # post-hoc
 
 ```{r emmeans-pairwise}
-model3.1_growth_nolength |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() |> pairs(by="DEV_TEMP") |> summary(infer=TRUE)
+out <- model3.1_growth_nolength  |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response")  
+out$emmeans |>
+  as.data.frame() 
 
 model3.1_growth_nolength  |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid()|> pairs(by="REGION") |> summary(infer=TRUE)
 
-model3.1_growth_nolength  |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() 
+model3.1_growth_nolength |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() |> pairs(by="DEV_TEMP") |> summary(infer=TRUE)
 
 model3.1_growth_nolength  |> emmeans(pairwise ~ DEV_TEMP, type="response") |> regrid() |> pairs() |> summary(infer=TRUE) 
 
