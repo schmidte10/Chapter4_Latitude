@@ -14,6 +14,7 @@ In depth statistical analysis can be viewed by downloading either .html (recomme
 
 # Growth analysis (Length) 
 
+```{r}
 library(modelsummary) # descriptive statistics 
 library(tidyverse) # data manipulation
 library(ggpubr) # figure arrangement 
@@ -130,5 +131,6 @@ model1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGI
 mtsqst <- model1 |> emmeans(pairwise ~ REGION*DEV_TEMP)
 mtsqrt2 <- mtsqst$contrasts |> gather_emmeans_draws()
 mtsqrt2 %>% group_by(contrast) %>% dplyr::summarise(Prob = sum(.value>0)/n())
+```
 
 # Mass
