@@ -820,11 +820,11 @@ out$emmeans |>
   as.data.frame() |>
   dplyr::mutate(across(where(is.numeric), ~ formatC(.x, digits = 2, format = "f")))
 
-model1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
+model1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() |> pairs(by="DEV_TEMP") |> summary()
 
-model1 |> emmeans(pairwise ~ DEV_TEMP, type="response") |> summary()
+model1 |> emmeans(pairwise ~ DEV_TEMP, type="response") |> regrid() |> summary()
 
-model1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> summary()
+model1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() |> pairs(by="REGION") |> summary()
 ```
 
 ## probabilities 
@@ -886,7 +886,7 @@ int_draws_plotting <- int_draws |>
                                                 "Low latitude_DEV_TEMP_28.5","Low latitude_DEV_TEMP_30", "Low latitude_DEV_TEMP_31.5")))
 ```
 
-```{r plotting, eval =FALSE}
+```{r plotting}
 
 length.plot <- int_draws_plotting |> 
   ggplot(aes(x=EXP_GROUP, y=LENGTH)) + 
