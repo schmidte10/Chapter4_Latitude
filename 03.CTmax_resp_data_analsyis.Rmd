@@ -745,9 +745,9 @@ model1.gamk4 |> mcmc_plot(type='intervals')
 ## emmeans - pariwise 
 
 ```{r emmeans-pairwise}
-model1.gamk4 |> emmeans(pairwise ~ region*dev.temp, type="response") |> pairs(by="dev.temp") |> summary(infer=TRUE)
+model1.gamk4 |> emmeans(pairwise ~ region*dev.temp, type="response") |> regrid() |> pairs(by="dev.temp") |> summary(infer=TRUE)
 
-model1.gamk4 |> emmeans(pairwise ~ region*dev.temp, type="response") |> pairs(by="region") |> confint()
+model1.gamk4 |> emmeans(pairwise ~ region*dev.temp, type="response") |> regrid() |> pairs(by="region") |> confint()
 
 model1.gamk4 |> emmeans(pairwise ~ region*dev.temp, type="response") |> regrid() 
 
@@ -866,7 +866,7 @@ pre.priors <- prior(normal(0.57, 0.2), class="Intercept") +
 ```
 
 ## linear model 
-```{r cache=TRUE}
+```{r cache=TRUE, eval=FALSE}
 f.pre.model1 <- bf(rate.output2 ~ 1 + 
                          dev.temp*region*Temperature + 
                          scale(mass, center=TRUE, scale=TRUE) + 
@@ -887,6 +887,11 @@ pre.model1 <- brm(f.pre.model1,
               control = list(adapt_delta=0.95)) 
 saveRDS(pre.model1, file="./03.CTmax_resp_data_analsyis_files/pre.model1.RDS")
 ```
+
+```{r echo =TRUE}
+pre.model1 <- readRDS("03.CTmax_resp_data_analsyis_files/pre.model1.RDS")
+```
+
 
 ## Model investigation {.tabset}
 
@@ -931,9 +936,9 @@ pre.model1 |> mcmc_plot(type='intervals')
 ### emmeans - pariwise 
 
 ```{r pre-emmeans-pairwise}
-pre.model1 |> emmeans(pairwise ~ region*dev.temp, type="response") |> pairs(by="dev.temp") |> summary(infer=TRUE)
+pre.model1 |> emmeans(pairwise ~ region*dev.temp, type="response") |> regrid() |> pairs(by="dev.temp") |> summary(infer=TRUE)
 
-pre.model1 |> emmeans(pairwise ~ region*dev.temp, type="response") |> pairs(by="region") |> confint()
+pre.model1 |> emmeans(pairwise ~ region*dev.temp, type="response") |> regrid() |> pairs(by="region") |> confint()
 
 pre.model1 |> emmeans(pairwise ~ region*dev.temp, type="response") |> regrid() 
 
@@ -990,7 +995,7 @@ post.priors <- prior(normal(0.78, 0.20), class="Intercept") +
 
 ## model
 
-```{r cache=TRUE}
+```{r cache=TRUE, eval=FALSE}
 f.post.model1 <- bf(rate.output2 ~ 1 + 
                          dev.temp*region*Temperature + 
                          scale(mass, center=TRUE, scale=TRUE) + 
@@ -1011,6 +1016,11 @@ post.model1 <- brm(f.post.model1,
               control = list(adapt_delta=0.95)) 
 saveRDS(post.model1, file="./03.CTmax_resp_data_analsyis_files/post.model1.RDS")
 ```
+
+```{r echo=FALSE}
+post.model1 <- readRDS("03.CTmax_resp_data_analsyis_files/post.model1.RDS")
+```
+
 
 ## Model investigation {.tabset}
 
@@ -1661,8 +1671,8 @@ figure4 <- (low_28 | high_28) /  (low_30 | high_30) / (low_31 | high_31) +
 ```
 
 ```{r}
-ggsave(file="./figures/figure4.svg",  plot=figure4 , width=10, height=14, units = "in", dpi=300) 
-ggsave(file="./figures/figure4.pdf",  plot=figure4 , width=8, height=12, units = "in", dpi=1200)
+#ggsave(file="./figures/figure4.svg",  plot=figure4 , width=10, height=14, units = "in", dpi=300) 
+#ggsave(file="./figures/figure4.pdf",  plot=figure4 , width=8, height=12, units = "in", dpi=1200)
 ```
 
 ```{r}
@@ -1675,6 +1685,6 @@ Sfigure4 <- (low_28.raw | high_28.raw) /  (low_30.raw | high_30.raw) / (low_31.r
 ```
 
 ```{r}
-ggsave(file="./figures/Sfigure4.svg",  plot=Sfigure4 , width=10, height=14, units = "in", dpi=300) 
-ggsave(file="./figures/Sfigure4.pdf",  plot=Sfigure4 , width=8, height=12, units = "in", dpi=1200)
+#ggsave(file="./figures/Sfigure4.svg",  plot=Sfigure4 , width=10, height=14, units = "in", dpi=300) 
+#ggsave(file="./figures/Sfigure4.pdf",  plot=Sfigure4 , width=8, height=12, units = "in", dpi=1200)
 ```
