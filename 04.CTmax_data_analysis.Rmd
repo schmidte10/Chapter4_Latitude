@@ -328,10 +328,10 @@ ctmax.priors <- prior(normal(37.0, 0.50), class="Intercept") +
 
 ## Models {.tabset}
 ### Model1.1 {.tabset}
-```{r model1.1, cache=TRUE}
+```{r model1.1a, cache=TRUE}
 f.model1.1 <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
                        scale(MASS, center=TRUE, scale=TRUE) + 
-                       (1| FEMALE) + (1| TANK) + (1| LEVEL) + (1| POPULATION) + (1| CLUTCH_ORDER), 
+                       (1| FEMALE) + (1| TANK), 
                      family=gaussian())
 
 model1.1 <- brm(f.model1.1,
@@ -349,8 +349,14 @@ model1.1 <- brm(f.model1.1,
 saveRDS(model1.1, file="./04.CTmax_data_analysis_files/model1.1.RDS")
 ```
 
+```{r echo=FALSE}
+model1.1 <- readRDS("04.CTmax_data_analysis_files/model1.1.RDS")
+```
+
+
+
 #### DHARMa 
-```{r model1.1-dharma}
+```{r model1.1a-dharma}
 #--- distribution check ---#
 pp_check(model1.1, type = 'dens_overlay_grouped', ndraws=150, group="REGION")
 
@@ -364,7 +370,7 @@ plot(model1.1_resids) ; testDispersion(model1.1_resids)
 ```
 
 #### MCMC diagnositics 
-```{r mcmc-diag-model1.1, fig.height=9}
+```{r mcmc-diag-model1.1a, fig.height=9}
 stan_trace(model1.1$fit, allpars=TRUE)
 stan_ac(model1.1$fit) 
 stan_rhat(model1.1$fit) 
@@ -378,7 +384,7 @@ stan_dens(model1.1$fit, separate_chains = TRUE)
 f.model1.2 <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
                    scale(FEMALE_LAT, center=TRUE, scale=TRUE) +
                    scale(MASS, center=TRUE, scale=TRUE) +
-                   (1| FEMALE) + (1| TANK) + (1| LEVEL) + (1| POPULATION) + (1| CLUTCH_ORDER),
+                   (1| FEMALE) + (1| TANK),
                  family=gaussian())
 
 model1.2 <- brm(f.model1.2,
@@ -395,6 +401,11 @@ model1.2 <- brm(f.model1.2,
               control = list(adapt_delta=0.95))
 saveRDS(model1.2, file="./04.CTmax_data_analysis_files/model1.2.RDS")
 ```
+
+```{r echo=FALSE}
+model1.2 <- readRDS("04.CTmax_data_analysis_files/model1.2.RDS")
+```
+
 
 #### DHARMa 
 ```{r model1.2-dharma}
@@ -432,7 +443,7 @@ ctmax.priors.gamma <- prior(normal(37.0, 0.50), class="Intercept") +
 f.model1.3 <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
                    scale(FEMALE_LAT, center=TRUE, scale=TRUE) +
                    scale(MASS, center=TRUE, scale=TRUE) +
-                   (1| FEMALE) + (1| TANK) + (1| LEVEL) + (1| POPULATION) + (1| CLUTCH_ORDER),
+                   (1| FEMALE) + (1| TANK),
                  family=Gamma(link="log"))
 
 model1.3 <- brm(f.model1.3,
@@ -448,6 +459,10 @@ model1.3 <- brm(f.model1.3,
               thin = 5, 
               control = list(adapt_delta=0.95))
 saveRDS(model1.3, file="./04.CTmax_data_analysis_files/model1.3.RDS")
+```
+
+```{r echo=FALSE}
+model1.3 <- readRDS("04.CTmax_data_analysis_files/model1.3.RDS")
 ```
 
 #### DHARMa 
@@ -476,11 +491,11 @@ stan_dens(model1.3$fit, separate_chains = TRUE)
 #### {-}
 
 ### Model1.4 {.tabset}
-```{r model1.1, cache=TRUE}
+```{r model1.4, cache=TRUE}
 f.model1.4 <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
                        scale(MASS, center=TRUE, scale=TRUE) + 
                    scale(AGE_DAYS, center=TRUE, scale=TRUE) +
-                       (1| FEMALE) + (1| TANK) + (1| LEVEL) + (1| POPULATION) + (1| CLUTCH_ORDER), 
+                       (1| FEMALE) + (1| TANK), 
                      family=gaussian())
 
 model1.4 <- brm(f.model1.4,
@@ -496,6 +511,10 @@ model1.4 <- brm(f.model1.4,
               thin = 5, 
               control = list(adapt_delta=0.95))
 saveRDS(model1.4, file="./04.CTmax_data_analysis_files/model1.4.RDS")
+```
+
+```{r echo=FALSE}
+model1.4 <- readRDS("04.CTmax_data_analysis_files/model1.4.RDS")
 ```
 
 #### DHARMa 
@@ -573,9 +592,9 @@ model1.1 |> mcmc_plot(type='intervals')
 ## emmeans - pariwise 
 
 ```{r emmeans-pairwise}
-model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="DEV_TEMP") |> summary()
-model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> summary()
-model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> pairs(by="REGION") |> confint()
+model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() |> pairs(by="DEV_TEMP") |> summary()
+model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() |> pairs(by="REGION") |> summary()
+model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() |> pairs(by="REGION") |> confint()
 model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response")
 out <- model1.1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") 
 out$emmeans |>

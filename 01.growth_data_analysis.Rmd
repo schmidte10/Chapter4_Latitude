@@ -583,7 +583,7 @@ model1.formula <- bf(LENGTH ~ DEV_TEMP*REGION +
                       scale(FEMALE_STANDARD_LENGTH, center=TRUE, scale=TRUE) + 
                       scale(DENSITY, center=TRUE, scale=TRUE) + 
                       scale(AGE_DAYS, center=TRUE, scale=TRUE)+ 
-                      (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER),
+                      (1|TANK) +  (1|FEMALE) ,
               family=gaussian()) 
 get_prior(model1.formula, data=growth3)
 growth.priors <- prior(normal(31.4, 1.5), class="Intercept") + 
@@ -592,7 +592,7 @@ growth.priors <- prior(normal(31.4, 1.5), class="Intercept") +
 ```
 
 ### Basic model
-```{r fit-model-model1, cache=TRUE, eval=FALSE, echo =TRUE} 
+```{r fit-model-model1, cache=TRUE} 
 model1 <- brm(model1.formula,
               data = growth3, 
               prior = growth.priors,
@@ -638,7 +638,7 @@ model.mat.formula <- bf(LENGTH ~ DEV_TEMP*REGION +
                       scale(AGE_DAYS, center=TRUE, scale=TRUE)+ 
                       scale(DAYS_IN_TREATMENT, center=TRUE, scale=TRUE)+
                       scale(EGG_COUNT, center=TRUE, scale=TRUE) + 
-                      (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER),
+                      (1|TANK) +  (1|FEMALE),
               family=gaussian()) 
 get_prior(model1.formula, data=growth3)
 growth.priors <- prior(normal(31.4, 1.5), class="Intercept") + 
@@ -686,7 +686,7 @@ model.geo.formula <- bf(LENGTH ~ DEV_TEMP*REGION +
                       scale(DENSITY, center=TRUE, scale=TRUE) + 
                       scale(AGE_DAYS, center=TRUE, scale=TRUE)+ 
                       scale(FEMALE_LAT, center=TRUE, scale=TRUE)+
-                      (1|LEVEL/TANK) + (1|POPULATION) + (1|FEMALE) + (1|CLUTCH_ORDER),
+                      (1|TANK) +  (1|FEMALE),
               family=gaussian()) 
 get_prior(model1.formula, data=growth3)
 growth.priors <- prior(normal(31.4, 1.5), class="Intercept") + 
@@ -825,6 +825,8 @@ model1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() |> pa
 model1 |> emmeans(pairwise ~ DEV_TEMP, type="response") |> regrid() |> summary()
 
 model1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() |> pairs(by="REGION") |> summary()
+
+model1 |> emmeans(pairwise ~ DEV_TEMP, type="response") |> regrid() |> pairs() |> summary()
 ```
 
 ## probabilities 

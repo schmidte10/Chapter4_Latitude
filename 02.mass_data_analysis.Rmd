@@ -607,12 +607,12 @@ mass.priors <- prior(normal(1.13, 0.20), class="Intercept") +
 
 #### Model
 
-```{r model3.1, cache=TRUE, eval=FALSE, echo=FALSE}
+```{r model3.1, cache=TRUE}
 f.model3.1 <- bf(MASS ~ 1 + 
                          DEV_TEMP*REGION +  
                          scale(DENSITY, center=TRUE, scale=TRUE) + 
                          scale(LENGTH, center=TRUE, scale=TRUE) + 
-                         (1| FEMALE) + (1| TANK) + (1|LEVEL) + (1| POPULATION), 
+                         (1| FEMALE) + (1| TANK), 
                          family=gaussian()) 
 
 model3.1 <- brm(f.model3.1,
@@ -662,12 +662,12 @@ stan_dens(model3.1$fit, separate_chains = TRUE)
 
 ### Model3.2 (polynomial model) {.tabset}
 #### Model
-```{r model3.2, cache=TRUE, eval=FALSE}
+```{r model3.2, cache=TRUE}
 f.model3.2 <- bf(MASS ~ 1 + 
                          DEV_TEMP*REGION + 
                          scale(DENSITY, center=TRUE, scale=TRUE) + 
                          poly(scale(LENGTH, center=TRUE, scale=TRUE), 2) + 
-                         (1| FEMALE) + (1| TANK) + (1|LEVEL) + (1| POPULATION), 
+                         (1| FEMALE) + (1| TANK), 
                          family=gaussian()) 
 
 model3.2 <- brm(f.model3.2,
@@ -737,12 +737,12 @@ model_gamma.priors <- prior(normal(1.13, 0.20), class="Intercept") +
 
 ## Model3.1_gamma1 {.tabset}
 ### Model
-```{r model3.3_gamma1, cache=TRUE, eval=FALSE, echo=FALSE}
+```{r model3.3_gamma1, cache=TRUE}
 f.model3.1_gamma1 <- bf(MASS ~ 1 + 
                          DEV_TEMP*REGION +  
                          scale(DENSITY, center=TRUE, scale=TRUE) + 
                          scale(LENGTH, center=TRUE, scale=TRUE) +  
-                         (1| FEMALE) + (1| TANK) + (1|LEVEL) + (1| POPULATION), 
+                         (1| FEMALE) + (1| TANK), 
                          family=Gamma(link = "log"))
 
 model3.1_gamma1 <- brm(f.model3.1_gamma1,
@@ -757,7 +757,7 @@ model3.1_gamma1 <- brm(f.model3.1_gamma1,
               chains = 2, 
               thin = 5, 
               control = list(adapt_delta=0.95))  
-#saveRDS(model3.1_gamma1, file="./02.mass_data_analysis_files/model3.1_gamma1.RDS")
+saveRDS(model3.1_gamma1, file="./02.mass_data_analysis_files/model3.1_gamma1.RDS")
 ```
 
 ```{r echo=FALSE}
@@ -854,7 +854,7 @@ model3.1_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regri
 
 model3.1_gamma1 |> emmeans(pairwise ~ REGION*DEV_TEMP, type="response") |> regrid() 
 
- 
+model3.1_gamma1 |> emmeans(pairwise ~ DEV_TEMP, type="response")  
 ```
 
 ## probabilities 
@@ -929,7 +929,7 @@ mass.plot <- int_draws_plotting |>
                            labels =c("0.99","0.95","0.89","0.66"), 
                            name = "Credible interval") +
   scale_fill_manual(values = c("lightskyblue" ,"dodgerblue2", "dodgerblue4","coral", "red2","firebrick4"))+ 
-  scale_y_continuous(limits=c(1,5), breaks = seq(1,5, 1))+
+  scale_y_continuous(limits=c(0.75,1.25), breaks = seq(0.75,1.25, 0.25))+
   ylab("MASS (g)") + xlab("EXPERIMENTAL GROUP") +
   scale_x_discrete(labels = c("Low latitude_DEV_TEMP_28.5" = paste0("Low latitude 28.5","\u00B0","C"), 
                               "Low latitude_DEV_TEMP_30" = paste0("Low latitude 30","\u00B0","C"),
@@ -964,11 +964,11 @@ model_gamma.priors <- prior(normal(1.13, 0.20), class="Intercept") +
 
 ## Model3.1_gamma1 {.tabset}
 ### Model
-```{r model3.3_growth-sio, cache=TRUE, eval=FALSE}
+```{r model3.3_growth-sio, cache=TRUE}
 f.model3.1.nolength <- bf(MASS ~ 1 + 
                          DEV_TEMP*REGION +  
                          scale(DENSITY, center=TRUE, scale=TRUE) +  
-                         (1| FEMALE) + (1| TANK) + (1|LEVEL) + (1| POPULATION), 
+                         (1| FEMALE) + (1| TANK), 
                          family=Gamma(link = "log"))
 
 model3.1.nolength <- brm(f.model3.1.nolength,
@@ -983,7 +983,7 @@ model3.1.nolength <- brm(f.model3.1.nolength,
               chains = 2, 
               thin = 5, 
               control = list(adapt_delta=0.95))  
-#saveRDS(model3.1.nolength, file="./02.mass_data_analysis_files/model3.1_growth_nolength.RDS")
+saveRDS(model3.1.nolength, file="./02.mass_data_analysis_files/model3.1_growth_nolength.RDS")
 ```
 
 ```{r}
@@ -1242,7 +1242,7 @@ mass_int_draws_plotting <- int_draws |>
 median(mass_int_draws_plotting$MASS)
 
 mass.plot <- mass_int_draws_plotting |> 
-  ggplot(aes(x=EXP_GROUP, y=MASS)) + 
+  ggplot(aes(x=EXP_GROUP, y=exp(MASS))) + 
   stat_halfeye(aes(fill = EXP_GROUP, fill_ramp = after_stat(level)), 
                point_interval = median_hdci, 
                .width = c(.66, .89, .95, .99)) + 
@@ -1250,9 +1250,9 @@ mass.plot <- mass_int_draws_plotting |>
                            labels =c("0.99","0.95","0.89","0.66"), 
                            name = "Credible interval") +
   scale_fill_manual(values = c("lightskyblue" ,"dodgerblue2", "dodgerblue4","coral", "red2","firebrick4"))+ 
-  scale_y_continuous(limits=c(0,2), breaks = seq(0,2, .5))+
+  scale_y_continuous(limits=c(0.5,2), breaks = seq(0.5,2, .5))+
   ylab("MASS (g)") + xlab("EXPERIMENTAL GROUP") +
-  geom_hline(yintercept = median(mass_int_draws_plotting$MASS), linetype="dashed", linewidth=1, color="grey58", alpha=0.8) +
+  geom_hline(yintercept = median(exp(mass_int_draws_plotting$MASS)), linetype="dashed", linewidth=1, color="grey58", alpha=0.8) +
   scale_x_discrete(labels = c("Low latitude_DEV_TEMP_28.5" = paste0("Low latitude 28.5","\u00B0","C"), 
                               "Low latitude_DEV_TEMP_30" = paste0("Low latitude 30","\u00B0","C"),
                               "Low latitude_DEV_TEMP_31.5" = paste0("Low latitude 31.5","\u00B0","C"), 
@@ -1331,7 +1331,7 @@ condition.plot <- int_draws_plotting |>
                            labels =c("0.99","0.95","0.89","0.66"), 
                            name = "Credible interval") +
   scale_fill_manual(values = c("lightskyblue" ,"dodgerblue2", "dodgerblue4","coral", "red2","firebrick4"))+ 
-  scale_y_continuous(limits=c(1,5), breaks = seq(1,5, 1))+
+  scale_y_continuous(limits=c(0.5,2), breaks = seq(0.5,2, 0.5))+
   ylab("BODY CONDITION (g)") + xlab("EXPERIMENTAL GROUP") +
   geom_hline(yintercept = median(int_draws_plotting$MASS), linetype="dashed", linewidth=1, color="grey58", alpha=0.8) +
   scale_x_discrete(labels = c("Low latitude_DEV_TEMP_28.5" = paste0("Low latitude 28.5","\u00B0","C"), 
@@ -1340,11 +1340,11 @@ condition.plot <- int_draws_plotting |>
                               "High latitude_DEV_TEMP_28.5" = paste0("High latitude 28.5","\u00B0","C"),
                               "High latitude_DEV_TEMP_30" = paste0("High latitude 30","\u00B0","C"),
                               "High latitude_DEV_TEMP_31.5" = paste0("High latitude 31.5","\u00B0","C"))) +
-  annotate("text", x=0.6,y=3.3, label = paste0(round(median(int_draws_plotting$MASS), 2)," (g)"), color="grey58") +
+  annotate("text", x=0.7,y=1.09, label = paste0(round(median(int_draws_plotting$MASS), 2)," (g)"), color="grey58") +
   coord_flip() + 
   theme_classic() + 
   guides(fill = "none") + 
-  theme(legend.position = "none") 
+  theme(legend.position = "none"); condition.plot 
         #axis.title.y = element_text(margin = margin(r =0.3, unit = "in"), size = 12), 
         #axis.title.x = element_text(margin = margin(t = 0.3, unit="in"), size =12), 
         #legend.key = element_rect(color="black", size=1.25), 
@@ -1358,7 +1358,7 @@ condition.plot <- int_draws_plotting |>
 figure2 <- length.plot / mass.plot / condition.plot + 
   plot_annotation(tag_levels ="A"); figure2
 
-#ggsave(file="./figures/figure2.jpeg",  plot=figure2 , width=6, height=12, units = "in", dpi=300) 
-#ggsave(file="./figures/figure2.pdf",  plot=figure2 , width=6, height=12, units = "in", dpi=1200)
+ggsave(file="./figures/figure2_v2.jpeg",  plot=figure2 , width=6, height=12, units = "in", dpi=300) 
+ggsave(file="./figures/figure2_v2.pdf",  plot=figure2 , width=6, height=12, units = "in", dpi=1200)
 ```
 
