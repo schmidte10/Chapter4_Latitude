@@ -42,7 +42,7 @@ library(rstanarm) # pairwise comparisons - need for emmeans
 
 # Set working directory 
 
-```{r setwd-1, echo=FALSE}
+```{r setwd-1, echo=FALSE, eval=FALSE}
 knitr::opts_knit$set(root.dir="C:/Users/jc527762/OneDrive - James Cook University/PhD dissertation/Data/Chapter4_Latitude")
 ``` 
 
@@ -888,11 +888,11 @@ int_draws_plotting <- int_draws |>
                                                 "Low latitude_DEV_TEMP_28.5","Low latitude_DEV_TEMP_30", "Low latitude_DEV_TEMP_31.5")))
 ```
 
-```{r plotting}
+```{r plotting }
 
 length.plot <- int_draws_plotting |> 
   ggplot(aes(x=EXP_GROUP, y=LENGTH)) + 
-  geom_hline(yintercept = 31.32, linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
+  geom_hline(yintercept = median(int_draws_plotting$LENGTH), linetype="dashed", linewidth=1, color="grey58", alpha=0.8) + 
   ggdist::stat_halfeye(aes(fill = EXP_GROUP, fill_ramp = after_stat(level)), 
                point_interval = median_hdci, 
                .width = c(.66, .90, .95)) + 
@@ -908,7 +908,7 @@ length.plot <- int_draws_plotting |>
                               "High latitude_DEV_TEMP_28.5" = paste0("High latitude 28.5","\u00B0","C"),
                               "High latitude_DEV_TEMP_30" = paste0("High latitude 30","\u00B0","C"),
                               "High latitude_DEV_TEMP_31.5" = paste0("High latitude 31.5","\u00B0","C"))) +
-  annotate("text", x=6.8,y=32.4, label = paste0(round(mean(growth3$LENGTH), 2)," (mm)"), color="grey58") +
+  annotate("text", x=6.8,y=32.4, label = paste0(round(median(int_draws_plotting$LENGTH), 2)," (mm)"), color="grey58") +
   coord_flip() + 
   theme_classic() + 
   guides(fill = "none") + 
