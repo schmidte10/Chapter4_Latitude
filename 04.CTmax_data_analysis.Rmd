@@ -380,7 +380,7 @@ stan_dens(model1.1$fit, separate_chains = TRUE)
 #### {-}
 
 ### Model1.2 {.tabset}
-```{r Model1.2}
+```{r Model1.2, eval=FALSE}
 f.model1.2 <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
                    scale(FEMALE_LAT, center=TRUE, scale=TRUE) +
                    scale(MASS, center=TRUE, scale=TRUE) +
@@ -439,7 +439,7 @@ ctmax.priors.gamma <- prior(normal(37.0, 0.50), class="Intercept") +
 ```
 
 
-```{r Model1.3}
+```{r Model1.3, eval =FALSE}
 f.model1.3 <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
                    scale(FEMALE_LAT, center=TRUE, scale=TRUE) +
                    scale(MASS, center=TRUE, scale=TRUE) +
@@ -491,7 +491,7 @@ stan_dens(model1.3$fit, separate_chains = TRUE)
 #### {-}
 
 ### Model1.4 {.tabset}
-```{r model1.4, cache=TRUE}
+```{r model1.4, cache=TRUE, eval=FALSE}
 f.model1.4 <- bf(LOE_MEAN_EAS ~ 1 + DEV_TEMP*REGION + 
                        scale(MASS, center=TRUE, scale=TRUE) + 
                    scale(AGE_DAYS, center=TRUE, scale=TRUE) +
@@ -678,7 +678,7 @@ ctmax.plot <- int_draws_plotting |>
                               "High latitude_DEV_TEMP_28.5" = paste0("High latitude 28.5","\u00B0","C"),
                               "High latitude_DEV_TEMP_30" = paste0("High latitude 30","\u00B0","C"),
                               "High latitude_DEV_TEMP_31.5" = paste0("High latitude 31.5","\u00B0","C"))) +
-  annotate("text", x=0.6,y=37.25, label = paste0(round(median(int_draws_plotting$CTMAX), 2)," \u00B0","C"), color="grey58") +
+  annotate("text", x=0.6,y=37.06, label = paste0(round(median(int_draws_plotting$CTMAX), 2)," \u00B0","C"), color="grey58") +
   coord_flip() + 
   theme_classic() + 
   guides(fill = "none") + 
